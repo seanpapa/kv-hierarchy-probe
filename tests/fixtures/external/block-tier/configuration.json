@@ -1,0 +1,41 @@
+{
+  "model": {
+    "root": "/models/qwen2.5-32b-instruct",
+    "revision": "unrecorded",
+    "served_name": "qwen2.5-32b-instruct"
+  },
+  "kv_geometry": {
+    "chunk_tokens": 16,
+    "bytes_per_chunk": 4194304,
+    "dtype": "bfloat16"
+  },
+  "cache": {
+    "upper_tier_capacity_bytes": 4294967296
+  },
+  "runtime": {
+    "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "device_id": "00000000:01:00.0",
+    "gpu_index": 0
+  },
+  "measurement": {
+    "contexts": [
+      4096
+    ],
+    "concurrency": [
+      1
+    ],
+    "samples": 3,
+    "warmup": 1
+  },
+  "arms": [
+    {
+      "name": "block-tier",
+      "backend": "external-block-cache",
+      "tier_path": "/cache/block-tier",
+      "attribution_provider": "nvidia_fs",
+      "staging_capacity_bytes": 0,
+      "eviction_policy": "LRU",
+      "eviction_parameters": {}
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+name: Evidence adapter or new tier
+description: Propose an evidence source for another stack or tier (DRAM, NVMe-oF, file or object storage, another serving framework).
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gate 1 accepts per-request bytes from outside the serving framework, filtered to the tier under test.
+        Read CONTRIBUTING.md ("New evidence sources") and docs/EXTERNAL-RUNS.md first. Do not attach raw measurement material.
+  - type: input
+    id: target
+    attributes:
+      label: Stack and tier
+      description: The serving framework and the tier you want to measure.
+      placeholder: "vLLM + LMCache, NVMe-oF namespace over RDMA"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Request-scoped evidence
+      description: Where the per-request bytes come from, how they are attributed to one request, and how they are filtered to the tier. What grade could this support?
+    validations:
+      required: true
+  - type: textarea
+    id: recompute
+    attributes:
+      label: Recompute arm
+      description: How a matched recompute arm is run on the same configuration.
+    validations:
+      required: true
+  - type: textarea
+    id: fallback
+    attributes:
+      label: Fallback
+      description: How a transparent fallback (recompute, a resident buffer, another path) is exposed or disabled.
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware you can test on
+      description: Generic description only (for example "two discrete GPUs, NVMe-oF over RoCE") — no host names or addresses.

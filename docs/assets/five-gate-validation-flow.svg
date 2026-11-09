@@ -1,0 +1,103 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="970" viewBox="0 0 1120 970" role="img" aria-labelledby="title description">
+  <title id="title">First visit to Gate 1 and the five-gate evaluation flow</title>
+  <desc id="description">First-visit discovers capabilities and demonstrates reporting, then directs the visitor to Gate 1 preparation, evidence collection and review. Gate 1 common measurement validation applies repeatedly to Gates 2 through 5 and final reporting. The report separates the verdict on measurement validity from the result describing tier behavior. NVMe tracing is optional inside Gate 1, not a mandatory benchmark. Solid arrows show recommended order, not an automated pipeline. Checks include automated validation and operator review. Reported claims remain component-tier scoped, not a disaggregated-path verdict.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 Z" fill="#475569"/></marker>
+    <marker id="validation-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 Z" fill="#2563a6"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #172033; }
+      .title { font-size: 29px; font-weight: 700; }
+      .subtitle { font-size: 16px; fill: #475569; }
+      .heading { font-size: 21px; font-weight: 700; }
+      .label { font-size: 17px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .note { font-size: 15px; fill: #475569; }
+      .step { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.3; }
+      .solid { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
+      .validation { fill: none; stroke: #2563a6; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#validation-arrow); }
+    </style>
+  </defs>
+  <rect width="1120" height="970" fill="#ffffff"/>
+  <text x="44" y="51" class="title">KV Hierarchy Probe: Five-Gate Evaluation Flow</text>
+  <text x="44" y="82" class="subtitle">first-visit → Gate 1 → Gates 2–5; repeat Gate 1 checks at every measured point</text>
+
+  <rect x="44" y="112" width="450" height="80" rx="10" class="step"/>
+  <text x="68" y="144" class="heading">Start: first-visit</text>
+  <text x="68" y="174" class="body">Discover capabilities + demo; not a hardware PASS</text>
+  <path d="M269 192 V236" class="solid"/>
+  <text x="620" y="140" class="label">Choose the evidence path inside Gate 1</text>
+  <text x="620" y="169" class="body">External counters or optional NVMe observations</text>
+  <text x="620" y="195" class="note">No automatic serving PASS from discovery or trace quality</text>
+
+  <g transform="translate(0 120)">
+
+  <rect x="44" y="119" width="450" height="574" rx="12" fill="#eff6ff" stroke="#93b4d5" stroke-width="1.3"/>
+  <text x="68" y="158" class="heading">Gate 1 · Serving Tier Verification</text>
+  <text x="68" y="187" class="label" fill="#2563a6">Core of Common Measurement Validation</text>
+  <text x="68" y="222" class="body">Prepare, collect evidence, and review validity.</text>
+  <text x="68" y="246" class="body">Repeat checks for each experiment and request.</text>
+
+  <text x="68" y="290" class="label">Before execution</text>
+  <text x="77" y="319" class="body">• Compare actual and recorded configuration</text>
+  <text x="77" y="345" class="body">• Derive expected KV payload bytes</text>
+  <text x="77" y="371" class="body">• Check counter scope and competing activity</text>
+
+  <text x="68" y="416" class="label">During / after requests</text>
+  <text x="77" y="445" class="body">• Link evidence intervals to requests</text>
+  <text x="77" y="471" class="body">• Verify serving tier and transferred bytes</text>
+  <text x="77" y="497" class="body">• Check correctness, errors, and fallback</text>
+
+  <text x="68" y="542" class="label">Before aggregation</text>
+  <text x="77" y="571" class="body">• Honor validity checks and claim suppression</text>
+  <text x="77" y="597" class="body">• Preserve raw evidence and exclusion reasons</text>
+  <line x1="68" y1="622" x2="470" y2="622" stroke="#b6cce2"/>
+  <text x="68" y="648" class="note">Automated checks + operator review.</text>
+  <text x="68" y="673" class="note">Coverage varies by script and evidence format.</text>
+
+  <rect x="620" y="119" width="456" height="66" rx="8" class="step"/>
+  <path d="M494 152 H617" class="solid"/>
+  <text x="644" y="147" class="label">Prepare the experiment</text>
+  <text x="644" y="173" class="body">Record conditions and select evidence sources</text>
+  <path d="M848 185 V216" class="solid"/>
+
+  <rect x="620" y="218" width="456" height="76" rx="8" class="step"/>
+  <text x="644" y="249" class="heading">Gate 2 · Single-hit retrieval break-even</text>
+  <text x="644" y="276" class="body">When does retrieval beat recompute?</text>
+  <path d="M848 294 V325" class="solid"/>
+
+  <rect x="620" y="327" width="456" height="76" rx="8" class="step"/>
+  <text x="644" y="358" class="heading">Gate 3 · Admission cost</text>
+  <text x="644" y="385" class="body">When do realized reuses repay admission?</text>
+  <path d="M848 403 V434" class="solid"/>
+
+  <rect x="620" y="436" width="456" height="76" rx="8" class="step"/>
+  <text x="644" y="467" class="heading">Gate 4 · Capacity justification</text>
+  <text x="644" y="494" class="body">Does overflow justify the lower tier?</text>
+  <path d="M848 512 V543" class="solid"/>
+
+  <rect x="620" y="545" width="456" height="76" rx="8" class="step"/>
+  <text x="644" y="576" class="heading">Gate 5 · Operating envelope</text>
+  <text x="644" y="603" class="body">Up to what load does the tier serve every request?</text>
+  <path d="M848 621 V652" class="solid"/>
+
+  <rect x="620" y="654" width="456" height="96" rx="8" fill="#f0f7f2" stroke="#8faa96" stroke-width="1.3"/>
+  <text x="644" y="679" class="label">Report verdict + result</text>
+  <text x="644" y="704" class="body">Verdict: is the measurement valid?</text>
+  <text x="644" y="728" class="body">Result: what did the tier demonstrate?</text>
+  <text x="644" y="744" class="note">Component-tier scope; not a disaggregated-path verdict</text>
+
+  <path d="M494 256 H617" class="validation"/>
+  <path d="M494 365 H617" class="validation"/>
+  <path d="M494 474 H617" class="validation"/>
+  <path d="M494 583 H617" class="validation"/>
+  <path d="M494 673 H550 V689 H617" class="validation"/>
+
+  <path d="M44 764 H96" class="solid"/>
+  <text x="112" y="770" class="note">Recommended evaluation order</text>
+  <path d="M467 764 H519" class="validation"/>
+  <text x="535" y="770" class="note">Common validation applied to each experiment</text>
+  <text x="44" y="805" class="note">Methodology view, not a claim that all scripts call one shared validator.</text>
+  <text x="44" y="830" class="note">If evidence is insufficient: retain the measurement, but do not use it to support a performance claim.</text>
+  </g>
+</svg>

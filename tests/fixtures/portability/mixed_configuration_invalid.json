@@ -1,0 +1,27 @@
+{
+  "fixture_version": "0.1.0",
+  "case_id": "mixed-configuration-invalid",
+  "host_profile": {
+    "architecture": "aarch64",
+    "memory_architecture": "unified",
+    "storage": "remote-block-posix"
+  },
+  "observation": {
+    "series": [
+      {
+        "configuration_id": "config-a",
+        "context_tokens": 2048,
+        "upper_tier_capacity_bytes": 3221225472
+      },
+      {
+        "configuration_id": "config-b",
+        "context_tokens": 4096,
+        "upper_tier_capacity_bytes": 6442450944
+      }
+    ]
+  },
+  "baseline": {
+    "current_classification": "not_comparable",
+    "target_gate_status": "INVALID"
+  }
+}

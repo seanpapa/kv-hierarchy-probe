@@ -1,0 +1,21 @@
+{
+  "fixture_version": "0.1.0",
+  "case_id": "allocation-failure",
+  "host_profile": {
+    "architecture": "aarch64",
+    "memory_architecture": "unified",
+    "storage": "remote-block-posix"
+  },
+  "observation": {
+    "provider": "cgroup_block",
+    "granularity": "per_request",
+    "expected_bytes": 1073741824,
+    "observed_bytes": 0,
+    "correct": true,
+    "allocation_failure": true
+  },
+  "baseline": {
+    "current_classification": "recompute_after_admission_failure",
+    "target_gate_status": "INVALID"
+  }
+}

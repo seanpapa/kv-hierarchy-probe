@@ -1,0 +1,21 @@
+{
+  "fixture_version": "0.1.0",
+  "case_id": "aggregate-cgroup-attribution",
+  "host_profile": {
+    "architecture": "aarch64",
+    "memory_architecture": "unified",
+    "storage": "remote-block-posix"
+  },
+  "observation": {
+    "provider": "cgroup_block",
+    "granularity": "run",
+    "target_device_filtered": false,
+    "expected_bytes": 1073741824,
+    "observed_bytes": 1593835520,
+    "correct": true
+  },
+  "baseline": {
+    "current_classification": "corroborating_only",
+    "target_gate_status": "SKIP_UNSUPPORTED"
+  }
+}

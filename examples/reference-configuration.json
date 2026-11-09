@@ -1,0 +1,54 @@
+{
+  "model": {
+    "root": "/models/reference-model",
+    "revision": "reference-revision",
+    "served_name": "reference-model"
+  },
+  "kv_geometry": {
+    "chunk_tokens": 256,
+    "bytes_per_chunk": 67108864,
+    "dtype": "bfloat16"
+  },
+  "cache": {
+    "upper_tier_capacity_bytes": 3221225472
+  },
+  "runtime": {
+    "image_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "device_id": "00000000:01:00.0",
+    "gpu_index": 0
+  },
+  "measurement": {
+    "contexts": [
+      4096
+    ],
+    "concurrency": [
+      1,
+      2
+    ],
+    "samples": 10,
+    "warmup": 2
+  },
+  "arms": [
+    {
+      "name": "recompute",
+      "backend": "disabled",
+      "tier_path": null,
+      "attribution_provider": "serving_log",
+      "staging_capacity_bytes": 0,
+      "eviction_policy": "none",
+      "eviction_parameters": {}
+    },
+    {
+      "name": "retrieval",
+      "backend": "reference_storage",
+      "tier_path": "/tier/reference-cache",
+      "attribution_provider": "native_device_counter",
+      "staging_capacity_bytes": 3221225472,
+      "eviction_policy": "targeted",
+      "eviction_parameters": {
+        "fillers": 6,
+        "filler_tokens": 8192
+      }
+    }
+  ]
+}

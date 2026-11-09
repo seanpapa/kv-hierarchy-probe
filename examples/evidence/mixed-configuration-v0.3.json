@@ -1,0 +1,231 @@
+{
+  "schema_version": "0.3.0",
+  "run_id": "sample-v0.3-mixed-configuration",
+  "description": "One envelope level was measured with a different upper-tier capacity.",
+  "provenance": {
+    "normalized_by": {
+      "adapter": "reference-adapter",
+      "version": "0.1.0"
+    },
+    "artifacts": [
+      {
+        "id": "counter-snapshot-1",
+        "kind": "counter_snapshot",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  },
+  "validity": {
+    "fatal_observations": []
+  },
+  "configurations": [
+    {
+      "id": "config-a",
+      "fingerprint": "ef82b81a722e489f1c9222bc7decafba23c27cad5ade1e3de76bcb1981274390",
+      "parameters": {
+        "model": {
+          "root": "/models/reference-model",
+          "revision": "reference-revision",
+          "served_name": "reference-model"
+        },
+        "kv_geometry": {
+          "chunk_tokens": 256,
+          "bytes_per_chunk": 67108864,
+          "dtype": "bfloat16"
+        },
+        "cache": {
+          "upper_tier_capacity_bytes": 3221225472
+        },
+        "runtime": {
+          "image_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "device_id": "00000000:01:00.0",
+          "gpu_index": 0
+        },
+        "measurement": {
+          "contexts": [
+            4096
+          ],
+          "concurrency": [
+            1,
+            2
+          ],
+          "samples": 10,
+          "warmup": 2
+        },
+        "arms": [
+          {
+            "name": "recompute",
+            "backend": "disabled",
+            "tier_path": null,
+            "attribution_provider": "serving_log",
+            "staging_capacity_bytes": 0,
+            "eviction_policy": "none",
+            "eviction_parameters": {}
+          },
+          {
+            "name": "retrieval",
+            "backend": "reference_storage",
+            "tier_path": "/tier/reference-cache",
+            "attribution_provider": "native_device_counter",
+            "staging_capacity_bytes": 3221225472,
+            "eviction_policy": "targeted",
+            "eviction_parameters": {
+              "fillers": 6,
+              "filler_tokens": 8192
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "config-b",
+      "fingerprint": "fc9e1102c05a5b148aec1ebbd1cfb0ad3644ac4249e807d97bdcb87642675657",
+      "parameters": {
+        "model": {
+          "root": "/models/reference-model",
+          "revision": "reference-revision",
+          "served_name": "reference-model"
+        },
+        "kv_geometry": {
+          "chunk_tokens": 256,
+          "bytes_per_chunk": 67108864,
+          "dtype": "bfloat16"
+        },
+        "cache": {
+          "upper_tier_capacity_bytes": 6442450944
+        },
+        "runtime": {
+          "image_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "device_id": "00000000:01:00.0",
+          "gpu_index": 0
+        },
+        "measurement": {
+          "contexts": [
+            4096
+          ],
+          "concurrency": [
+            1,
+            2
+          ],
+          "samples": 10,
+          "warmup": 2
+        },
+        "arms": [
+          {
+            "name": "recompute",
+            "backend": "disabled",
+            "tier_path": null,
+            "attribution_provider": "serving_log",
+            "staging_capacity_bytes": 0,
+            "eviction_policy": "none",
+            "eviction_parameters": {}
+          },
+          {
+            "name": "retrieval",
+            "backend": "reference_storage",
+            "tier_path": "/tier/reference-cache",
+            "attribution_provider": "native_device_counter",
+            "staging_capacity_bytes": 3221225472,
+            "eviction_policy": "targeted",
+            "eviction_parameters": {
+              "fillers": 6,
+              "filler_tokens": 8192
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "bindings": {
+    "attribution_requests": [
+      {
+        "request_id": "request-1",
+        "configuration_id": "config-a"
+      }
+    ],
+    "break_even": "config-a",
+    "admission": "config-a",
+    "capacity": "config-a",
+    "envelope_levels": [
+      {
+        "level_index": 0,
+        "configuration_id": "config-a"
+      },
+      {
+        "level_index": 1,
+        "configuration_id": "config-b"
+      }
+    ]
+  },
+  "evidence": {
+    "attribution": {
+      "availability": {
+        "status": "supported"
+      },
+      "requests": [
+        {
+          "id": "request-1",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 268435456,
+          "observed_bytes": 268435456,
+          "attribution": {
+            "provider": "native_device_counter",
+            "granularity": "per_request",
+            "confidence": "direct",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "counter-snapshot-1"
+            ]
+          }
+        }
+      ]
+    },
+    "break_even": {
+      "availability": {
+        "status": "supported"
+      },
+      "retrieval_ttft_s": [
+        0.17,
+        0.18,
+        0.16
+      ],
+      "recompute_ttft_s": [
+        0.3,
+        0.31,
+        0.29
+      ]
+    },
+    "admission": {
+      "availability": {
+        "status": "supported"
+      },
+      "store_cost_s": 0.05,
+      "expected_reuses": 2
+    },
+    "capacity": {
+      "availability": {
+        "status": "supported"
+      },
+      "upper_tier_overflow_observed": true,
+      "target_tier_served": true
+    },
+    "envelope": {
+      "availability": {
+        "status": "supported"
+      },
+      "levels": [
+        {
+          "concurrency": 1,
+          "requests": 10,
+          "target_tier_served": 10
+        },
+        {
+          "concurrency": 2,
+          "requests": 10,
+          "target_tier_served": 10
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "trace_contract_version": "0.2.0",
+  "namespace": "nvme0n1",
+  "controller_id": 0,
+  "logical_block_size": 4096,
+  "clock": "CLOCK_MONOTONIC",
+  "capture_start_ns": 0,
+  "capture_end_ns": 100,
+  "capture_ready": true,
+  "capture_exit_code": 0,
+  "loss_events": 0
+}

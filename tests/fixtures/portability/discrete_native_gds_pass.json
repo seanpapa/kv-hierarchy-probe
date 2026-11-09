@@ -1,0 +1,21 @@
+{
+  "fixture_version": "0.1.0",
+  "case_id": "discrete-native-gds-pass",
+  "host_profile": {
+    "architecture": "x86_64",
+    "memory_architecture": "discrete",
+    "storage": "local-nvme-ext4"
+  },
+  "observation": {
+    "provider": "native_gds_counter",
+    "granularity": "per_request",
+    "expected_bytes": 268435456,
+    "observed_bytes": 268435456,
+    "correct": true,
+    "allocation_failure": false
+  },
+  "baseline": {
+    "current_classification": "attributed",
+    "target_gate_status": "PASS"
+  }
+}

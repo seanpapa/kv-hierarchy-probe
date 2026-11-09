@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+/dist/
+/out/
+/evidence-local/
+
+# Artifacts the documented commands write into the repository root
+# (geometry.json, evidence.json, configuration.json, report.txt, ...).
+# Anchored to the root so tracked examples, schemas and fixtures are unaffected.
+/*.json
+/report.txt
+/*.report.md

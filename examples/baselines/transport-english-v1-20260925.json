@@ -1,0 +1,98 @@
+{
+  "baseline_version": "0.1.0",
+  "mode": "context",
+  "workload": {
+    "profile": "transport",
+    "version": "english-v1",
+    "seed": 17,
+    "expected_output": "STAGE1_D6_OK",
+    "prompt_identity": {
+      "256": {"prompt_tokens": 287, "sha256": "1c3d5b0744cdf81d432fcfcd1dcbf929b15040910df34ac62d459510f1f6e359"},
+      "512": {"prompt_tokens": 518, "sha256": "8b68a0eb6c877dc9e59af92a6445b732d5c549046fae3c70322a50a2ea388bd5"},
+      "1024": {"prompt_tokens": 1047, "sha256": "8247aa72957951ac6e082dee5656fe935289020f09ffed5cc7a995c17044f06d"},
+      "2048": {"prompt_tokens": 2070, "sha256": "76e2edcf6648a9c110bcd84d30853573359289463b9d4f5a88b6246b77397f0f"},
+      "4096": {"prompt_tokens": 4116, "sha256": "74578a338ac4f94d8e35accce3ba1ad55f80a17ce53f74e7e84cd789e08d8fe8"}
+    }
+  },
+  "scope": {
+    "model": "Qwen2.5-32B-Instruct",
+    "accelerator": "RTX PRO 6000 Blackwell Server Edition",
+    "tensor_parallel_size": 1,
+    "concurrency": 1,
+    "guaranteed_hit": true,
+    "arm_order_seed": 20260911,
+    "arm_order_runs": 3,
+    "warmup_requests_per_run": 2,
+    "measured_requests_per_run": 10,
+    "fillers": 6,
+    "filler_tokens": 8192,
+    "filler_key_policy": "unique",
+    "chunk_tokens": 256,
+    "kv_mib_per_chunk": 64,
+    "counter_scope": "controlled_interval_corroboration",
+    "target_device_filtered": false
+  },
+  "source": "English-v1 four-arm sweep, 2026-09-25. Closure decision and checksummed raw bundles are kept in access-controlled storage (see docs/EVIDENCE.md).",
+  "result": {
+    "recompute/256": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 256, "kv_expected_mib": 64, "ttft_p50_s": 0.08187, "ttft_p95_s": 0.08244}
+    },
+    "recompute/512": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 512, "kv_expected_mib": 128, "ttft_p50_s": 0.12123, "ttft_p95_s": 0.12176}
+    },
+    "recompute/1024": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 1024, "kv_expected_mib": 256, "ttft_p50_s": 0.21173, "ttft_p95_s": 0.21242}
+    },
+    "recompute/2048": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 2048, "kv_expected_mib": 512, "ttft_p50_s": 0.39707, "ttft_p95_s": 0.39869}
+    },
+    "recompute/4096": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 4096, "kv_expected_mib": 1024, "ttft_p50_s": 0.78114, "ttft_p95_s": 0.78556}
+    },
+    "posix/256": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 256, "kv_expected_mib": 64, "ttft_p50_s": 0.07715, "ttft_p95_s": 0.08079}
+    },
+    "posix/512": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 512, "kv_expected_mib": 128, "ttft_p50_s": 0.09214, "ttft_p95_s": 0.09341}
+    },
+    "posix/1024": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 1024, "kv_expected_mib": 256, "ttft_p50_s": 0.12010, "ttft_p95_s": 0.12211}
+    },
+    "posix/2048": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 2048, "kv_expected_mib": 512, "ttft_p50_s": 0.17606, "ttft_p95_s": 0.17891}
+    },
+    "posix/4096": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 4096, "kv_expected_mib": 1024, "ttft_p50_s": 0.29064, "ttft_p95_s": 0.29383}
+    },
+    "native-gds/256": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 256, "kv_expected_mib": 64, "ttft_p50_s": 0.06563, "ttft_p95_s": 0.06753}
+    },
+    "native-gds/512": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 512, "kv_expected_mib": 128, "ttft_p50_s": 0.07307, "ttft_p95_s": 0.07448}
+    },
+    "native-gds/1024": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 1024, "kv_expected_mib": 256, "ttft_p50_s": 0.08998, "ttft_p95_s": 0.09376}
+    },
+    "native-gds/2048": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 2048, "kv_expected_mib": 512, "ttft_p50_s": 0.12118, "ttft_p95_s": 0.12820}
+    },
+    "native-gds/4096": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 4096, "kv_expected_mib": 1024, "ttft_p50_s": 0.18252, "ttft_p95_s": 0.18465}
+    },
+    "nixl-gds-mt/256": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 256, "kv_expected_mib": 64, "ttft_p50_s": 0.06683, "ttft_p95_s": 0.06903}
+    },
+    "nixl-gds-mt/512": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 512, "kv_expected_mib": 128, "ttft_p50_s": 0.07380, "ttft_p95_s": 0.07607}
+    },
+    "nixl-gds-mt/1024": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 1024, "kv_expected_mib": 256, "ttft_p50_s": 0.08623, "ttft_p95_s": 0.08896}
+    },
+    "nixl-gds-mt/2048": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 2048, "kv_expected_mib": 512, "ttft_p50_s": 0.11549, "ttft_p95_s": 0.11825}
+    },
+    "nixl-gds-mt/4096": {
+      "summary": {"n": 30, "correct": 30, "tier_ok": 30, "cacheable_tokens": 4096, "kv_expected_mib": 1024, "ttft_p50_s": 0.17149, "ttft_p95_s": 0.17535}
+    }
+  }
+}

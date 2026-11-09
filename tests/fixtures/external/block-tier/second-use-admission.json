@@ -1,0 +1,57 @@
+{
+  "description": "Second-use admission (the disk tier stores a block only on its second use): the first re-request after store read nothing and was recomputed; every later request read 1 GiB from the tier.",
+  "mode": "context",
+  "arm": "block-tier",
+  "arguments": {
+    "contexts": [
+      4096
+    ],
+    "samples": 3,
+    "warmup": 1
+  },
+  "result": {
+    "4096": {
+      "summary": {
+        "n": 4
+      },
+      "rows": [
+        {
+          "phase": "warmup",
+          "index": 0,
+          "correct": true,
+          "tier_ok": false,
+          "nvfs_read_mib": 0,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 820.0
+        },
+        {
+          "phase": "measure",
+          "index": 1,
+          "correct": true,
+          "tier_ok": true,
+          "nvfs_read_mib": 1024,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 180.0
+        },
+        {
+          "phase": "measure",
+          "index": 2,
+          "correct": true,
+          "tier_ok": true,
+          "nvfs_read_mib": 1024,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 180.0
+        },
+        {
+          "phase": "measure",
+          "index": 3,
+          "correct": true,
+          "tier_ok": true,
+          "nvfs_read_mib": 1024,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 180.0
+        }
+      ]
+    }
+  }
+}

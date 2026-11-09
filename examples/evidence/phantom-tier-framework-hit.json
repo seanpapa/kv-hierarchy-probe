@@ -1,0 +1,180 @@
+{
+  "schema_version": "0.3.0",
+  "run_id": "phantom-tier-framework-hit",
+  "description": "normalized by g5-context-adapter from context run(s)",
+  "provenance": {
+    "normalized_by": {
+      "adapter": "g5-context-adapter",
+      "version": "0.3.0"
+    },
+    "artifacts": [
+      {
+        "id": "phantom-framework-hit",
+        "kind": "measurement_output",
+        "sha256": "2ab90b65b1d50ce6defd66cabe8c0933cd6d3fcc3a7fca6c445454e37fc45bdf"
+      }
+    ]
+  },
+  "validity": {
+    "fatal_observations": []
+  },
+  "configurations": [
+    {
+      "id": "config-a",
+      "fingerprint": "9d8b111d969d7f5e31ad8ec8cc87fa0ce8cf58d8fbd0f67a8803e4f488bb85b9",
+      "parameters": {
+        "model": {
+          "root": "/models/qwen2.5-32b-instruct",
+          "revision": "unrecorded",
+          "served_name": "qwen2.5-32b-instruct"
+        },
+        "kv_geometry": {
+          "chunk_tokens": 16,
+          "bytes_per_chunk": 4194304,
+          "dtype": "bfloat16"
+        },
+        "cache": {
+          "upper_tier_capacity_bytes": 4294967296
+        },
+        "runtime": {
+          "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "device_id": "00000000:01:00.0",
+          "gpu_index": 0
+        },
+        "measurement": {
+          "contexts": [
+            4096
+          ],
+          "concurrency": [
+            1
+          ],
+          "samples": 3,
+          "warmup": 1
+        },
+        "arms": [
+          {
+            "name": "block-tier",
+            "backend": "external-block-cache",
+            "tier_path": "/cache/block-tier",
+            "attribution_provider": "nvidia_fs",
+            "staging_capacity_bytes": 0,
+            "eviction_policy": "LRU",
+            "eviction_parameters": {}
+          }
+        ]
+      }
+    }
+  ],
+  "bindings": {
+    "attribution_requests": [
+      {
+        "request_id": "ctx4096-1",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-2",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-3",
+        "configuration_id": "config-a"
+      }
+    ],
+    "break_even": null,
+    "admission": null,
+    "capacity": null,
+    "envelope_levels": []
+  },
+  "evidence": {
+    "attribution": {
+      "availability": {
+        "status": "supported"
+      },
+      "requests": [
+        {
+          "id": "ctx4096-1",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 0,
+          "attribution": {
+            "provider": "nvidia_fs",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": false,
+            "artifact_refs": [
+              "phantom-framework-hit"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-2",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 0,
+          "attribution": {
+            "provider": "nvidia_fs",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": false,
+            "artifact_refs": [
+              "phantom-framework-hit"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-3",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 0,
+          "attribution": {
+            "provider": "nvidia_fs",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": false,
+            "artifact_refs": [
+              "phantom-framework-hit"
+            ]
+          }
+        }
+      ],
+      "warmup_observations": {
+        "requests": 1,
+        "moved_no_bytes": 0,
+        "artifact_refs": [
+          "phantom-framework-hit"
+        ]
+      }
+    },
+    "break_even": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "break_even_not_measured",
+        "detail": "Break-even needs a tier context run and a recompute context run."
+      }
+    },
+    "admission": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "admission_not_measured",
+        "detail": "No admission-cost run was supplied."
+      }
+    },
+    "capacity": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "capacity_not_measured",
+        "detail": "No capacity sweep was supplied."
+      }
+    },
+    "envelope": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "concurrency_not_measured",
+        "detail": "No concurrency sweep was supplied."
+      }
+    }
+  }
+}

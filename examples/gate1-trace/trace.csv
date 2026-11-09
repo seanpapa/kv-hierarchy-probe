@@ -1,0 +1,5 @@
+# Synthetic observations only; no real device capture.
+S,20,0,1,7,1,100,2,0
+C,30,0,1,7,0,0
+S,60,0,1,7,2,100,2,0
+C,70,0,1,7,0,0

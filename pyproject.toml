@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kv-hierarchy-probe"
+version = "0.1.0"
+description = "Prove a KV-cache tier before reporting its performance."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = []
+
+[project.optional-dependencies]
+# Test-only. The portable core stays dependency-free on purpose; this pins the
+# validator CI uses to hold the bundled examples to schemas/ (see
+# tests/test_schema_contract.py). Without it those checks skip, not fail.
+test = ["jsonschema==4.26.0"]
+
+[project.scripts]
+kvprobe = "kvprobe.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kvprobe*"]

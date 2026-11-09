@@ -1,0 +1,159 @@
+{
+  "schema_version": "0.3.0",
+  "run_id": "envelope-pass-large-pool",
+  "description": "normalized by g5-context-adapter from concurrency run(s)",
+  "provenance": {
+    "normalized_by": {
+      "adapter": "g5-context-adapter",
+      "version": "0.1.0"
+    },
+    "artifacts": [
+      {
+        "id": "concurrency-gds",
+        "kind": "measurement_output",
+        "sha256": "c6b2d58bd150937111eb9b6df4f2b3912a6eb936f9eaebbe10af1c16242c7a65"
+      }
+    ]
+  },
+  "validity": {
+    "fatal_observations": []
+  },
+  "configurations": [
+    {
+      "id": "config-a",
+      "fingerprint": "4746c025d48acecc2166f56e3100c05efe4c26b0c19ce2a749f1727ec5ee9ce1",
+      "parameters": {
+        "model": {
+          "root": "/models/reference-32b",
+          "revision": "unrecorded",
+          "served_name": "reference-32b"
+        },
+        "kv_geometry": {
+          "chunk_tokens": 256,
+          "bytes_per_chunk": 67108864,
+          "dtype": "bfloat16"
+        },
+        "cache": {
+          "upper_tier_capacity_bytes": 3221225472
+        },
+        "runtime": {
+          "image_digest": "reference-build-discrete-01",
+          "device_id": "00000000:01:00.0",
+          "gpu_index": 0
+        },
+        "measurement": {
+          "contexts": [
+            256,
+            512,
+            1024,
+            2048,
+            4096
+          ],
+          "concurrency": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "samples": 10,
+          "warmup": 2
+        },
+        "arms": [
+          {
+            "name": "gds",
+            "backend": "lmcache_gds_cufile",
+            "tier_path": "/tier/reference-gds",
+            "attribution_provider": "nvidia_fs",
+            "staging_capacity_bytes": 6442450944,
+            "eviction_policy": "LRU",
+            "eviction_parameters": {
+              "trigger_watermark": 0.9,
+              "eviction_ratio": 0.1
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "bindings": {
+    "attribution_requests": [],
+    "break_even": null,
+    "admission": null,
+    "capacity": null,
+    "envelope_levels": [
+      {
+        "level_index": 0,
+        "configuration_id": "config-a"
+      },
+      {
+        "level_index": 1,
+        "configuration_id": "config-a"
+      },
+      {
+        "level_index": 2,
+        "configuration_id": "config-a"
+      },
+      {
+        "level_index": 3,
+        "configuration_id": "config-a"
+      }
+    ]
+  },
+  "evidence": {
+    "attribution": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "per_request_attribution_not_recorded",
+        "detail": "No context run was supplied; only a context run records bytes per request."
+      }
+    },
+    "break_even": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "break_even_not_measured",
+        "detail": "Break-even needs a tier context run and a recompute context run."
+      }
+    },
+    "admission": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "admission_not_measured",
+        "detail": "No admission-cost run was supplied."
+      }
+    },
+    "capacity": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "capacity_not_measured",
+        "detail": "No capacity sweep was supplied."
+      }
+    },
+    "envelope": {
+      "availability": {
+        "status": "supported"
+      },
+      "levels": [
+        {
+          "concurrency": 1,
+          "requests": 10,
+          "target_tier_served": 10
+        },
+        {
+          "concurrency": 2,
+          "requests": 20,
+          "target_tier_served": 20
+        },
+        {
+          "concurrency": 4,
+          "requests": 40,
+          "target_tier_served": 40
+        },
+        {
+          "concurrency": 8,
+          "requests": 80,
+          "target_tier_served": 80
+        }
+      ]
+    }
+  }
+}

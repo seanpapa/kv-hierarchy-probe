@@ -1,0 +1,57 @@
+{
+  "description": "The harness took tier_ok from the framework's own log. The framework reported a disk-tier hit; the device read nothing.",
+  "mode": "context",
+  "arm": "block-tier",
+  "arguments": {
+    "contexts": [
+      4096
+    ],
+    "samples": 3,
+    "warmup": 1
+  },
+  "result": {
+    "4096": {
+      "summary": {
+        "n": 4
+      },
+      "rows": [
+        {
+          "phase": "warmup",
+          "index": 0,
+          "correct": true,
+          "tier_ok": true,
+          "nvfs_read_mib": 1024,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 180.0
+        },
+        {
+          "phase": "measure",
+          "index": 1,
+          "correct": true,
+          "tier_ok": true,
+          "nvfs_read_mib": 0,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 180.0
+        },
+        {
+          "phase": "measure",
+          "index": 2,
+          "correct": true,
+          "tier_ok": true,
+          "nvfs_read_mib": 0,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 180.0
+        },
+        {
+          "phase": "measure",
+          "index": 3,
+          "correct": true,
+          "tier_ok": true,
+          "nvfs_read_mib": 0,
+          "cacheable_tokens": 4096,
+          "ttft_ms": 180.0
+        }
+      ]
+    }
+  }
+}

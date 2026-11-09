@@ -1,0 +1,582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kv-hierarchy-probe:evidence:0.2.0",
+  "title": "kv-hierarchy-probe normalized evidence v0.2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "provenance", "validity"],
+  "properties": {
+    "schema_version": {
+      "const": "0.2.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "validity": {
+      "$ref": "#/$defs/validity"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "validity": {
+            "properties": {
+              "fatal_observations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": ["evidence"]
+      }
+    }
+  ],
+  "$defs": {
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0
+    },
+    "finiteNumber": {
+      "type": "number"
+    },
+    "availability": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "const": "supported"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason_code", "detail"],
+          "properties": {
+            "status": {
+              "const": "unsupported"
+            },
+            "reason_code": {
+              "type": "string",
+              "minLength": 1
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "artifactReference": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["normalized_by", "artifacts"],
+      "properties": {
+        "normalized_by": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["adapter", "version"],
+          "properties": {
+            "adapter": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "sha256"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fatal_observations"],
+      "properties": {
+        "fatal_observations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "scope", "artifact_refs"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope": {
+                "const": "measurement"
+              },
+              "artifact_refs": {
+                "$ref": "#/$defs/artifactReference"
+              }
+            }
+          }
+        }
+      }
+    },
+    "attributionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "granularity",
+        "confidence",
+        "target_device_filtered",
+        "artifact_refs"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "granularity": {
+          "enum": ["per_request", "per_batch", "per_run"]
+        },
+        "confidence": {
+          "enum": ["direct", "corroborating", "heuristic"]
+        },
+        "target_device_filtered": {
+          "type": "boolean"
+        },
+        "artifact_refs": {
+          "$ref": "#/$defs/artifactReference"
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "correct",
+        "source",
+        "expected_bytes",
+        "observed_bytes",
+        "attribution"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correct": {
+          "type": "boolean"
+        },
+        "source": {
+          "enum": ["target_tier", "upper_tier", "recompute"]
+        },
+        "expected_bytes": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "observed_bytes": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "attribution": {
+          "$ref": "#/$defs/attributionRecord"
+        }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "required": ["availability"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "supported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": ["requests"]
+          }
+        }
+      ],
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/availability"
+        },
+        "tolerance_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "requests": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/request"
+          }
+        },
+        "corroborating_observations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "provider",
+              "granularity",
+              "observed_bytes",
+              "artifact_refs"
+            ],
+            "properties": {
+              "provider": {
+                "type": "string",
+                "minLength": 1
+              },
+              "granularity": {
+                "enum": ["per_batch", "per_run"]
+              },
+              "observed_bytes": {
+                "$ref": "#/$defs/nonNegativeNumber"
+              },
+              "artifact_refs": {
+                "$ref": "#/$defs/artifactReference"
+              }
+            }
+          }
+        },
+        "warmup_observations": {
+          "description": "Optional. Warm-up requests are excluded from the verdict; this counts those that moved no bytes from the tier, so a tier that missed its first reuse stays visible.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests", "moved_no_bytes", "artifact_refs"],
+          "properties": {
+            "requests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "moved_no_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "artifact_refs": {
+              "$ref": "#/$defs/artifactReference"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "breakEven": {
+      "type": "object",
+      "required": ["availability"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "supported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": ["retrieval_ttft_s", "recompute_ttft_s"]
+          }
+        }
+      ],
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/availability"
+        },
+        "retrieval_ttft_s": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonNegativeNumber"
+          }
+        },
+        "recompute_ttft_s": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonNegativeNumber"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "admission": {
+      "type": "object",
+      "required": ["availability"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "supported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": ["store_cost_s", "expected_reuses"]
+          }
+        }
+      ],
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/availability"
+        },
+        "store_cost_s": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "expected_reuses": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "sample_counts": {
+          "$ref": "#/$defs/admissionSampleCounts"
+        },
+        "realized_reuse_saving_s": {
+          "$ref": "#/$defs/finiteNumber"
+        },
+        "attempt_counts": {
+          "$ref": "#/$defs/admissionAttemptCounts"
+        },
+        "calculation_basis": {
+          "const": "all_attempts"
+        }
+      },
+      "additionalProperties": false
+    },
+    "admissionAttemptCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "target_tier",
+        "fallback",
+        "store_unattributed",
+        "unattributed"
+      ],
+      "properties": {
+        "attempted": {"type": "integer", "minimum": 1},
+        "target_tier": {"type": "integer", "minimum": 0},
+        "fallback": {"type": "integer", "minimum": 0},
+        "store_unattributed": {"type": "integer", "minimum": 0},
+        "unattributed": {"type": "integer", "minimum": 0}
+      }
+    },
+    "admissionSampleCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested", "valid", "dropped"],
+      "properties": {
+        "requested": {"type": "integer", "minimum": 0},
+        "valid": {"type": "integer", "minimum": 0},
+        "dropped": {"type": "integer", "minimum": 0}
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "required": ["availability"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "supported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "upper_tier_overflow_observed",
+              "target_tier_served"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/availability"
+        },
+        "upper_tier_overflow_observed": {
+          "type": "boolean"
+        },
+        "target_tier_served": {
+          "type": "boolean"
+        },
+        "classification_counts": {
+          "$ref": "#/$defs/capacityClassificationCounts"
+        },
+        "overflow_classification_counts": {
+          "$ref": "#/$defs/capacityClassificationCounts"
+        }
+      },
+      "additionalProperties": false
+    },
+    "capacityClassificationCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retrievals_expected",
+        "upper_tier_served",
+        "target_tier_served",
+        "fallback",
+        "miss"
+      ],
+      "properties": {
+        "retrievals_expected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "upper_tier_served": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "target_tier_served": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fallback": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "miss": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "envelope": {
+      "type": "object",
+      "required": ["availability"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "supported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": ["levels"]
+          }
+        }
+      ],
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/availability"
+        },
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["concurrency", "requests", "target_tier_served"],
+            "properties": {
+              "concurrency": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "requests": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "target_tier_served": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attribution", "break_even", "admission", "capacity", "envelope"],
+      "properties": {
+        "attribution": {
+          "$ref": "#/$defs/attribution"
+        },
+        "break_even": {
+          "$ref": "#/$defs/breakEven"
+        },
+        "admission": {
+          "$ref": "#/$defs/admission"
+        },
+        "capacity": {
+          "$ref": "#/$defs/capacity"
+        },
+        "envelope": {
+          "$ref": "#/$defs/envelope"
+        }
+      }
+    }
+  }
+}

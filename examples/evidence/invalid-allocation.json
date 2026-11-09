@@ -1,0 +1,96 @@
+{
+  "schema_version": "0.3.1",
+  "run_id": "invalid-allocation",
+  "description": "Synthetic configuration-bound capability/verdict example; no hardware measurement.",
+  "provenance": {
+    "normalized_by": {
+      "adapter": "reference-adapter",
+      "version": "0.1.0"
+    },
+    "artifacts": [
+      {
+        "id": "server-log-1",
+        "kind": "server_log",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ]
+  },
+  "validity": {
+    "fatal_observations": [
+      {
+        "code": "allocation_failure",
+        "scope": "measurement",
+        "artifact_refs": [
+          "server-log-1"
+        ]
+      }
+    ]
+  },
+  "configurations": [
+    {
+      "id": "config-a",
+      "fingerprint": "ef82b81a722e489f1c9222bc7decafba23c27cad5ade1e3de76bcb1981274390",
+      "parameters": {
+        "model": {
+          "root": "/models/reference-model",
+          "revision": "reference-revision",
+          "served_name": "reference-model"
+        },
+        "kv_geometry": {
+          "chunk_tokens": 256,
+          "bytes_per_chunk": 67108864,
+          "dtype": "bfloat16"
+        },
+        "cache": {
+          "upper_tier_capacity_bytes": 3221225472
+        },
+        "runtime": {
+          "image_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "device_id": "00000000:01:00.0",
+          "gpu_index": 0
+        },
+        "measurement": {
+          "contexts": [
+            4096
+          ],
+          "concurrency": [
+            1,
+            2
+          ],
+          "samples": 10,
+          "warmup": 2
+        },
+        "arms": [
+          {
+            "name": "recompute",
+            "backend": "disabled",
+            "tier_path": null,
+            "attribution_provider": "serving_log",
+            "staging_capacity_bytes": 0,
+            "eviction_policy": "none",
+            "eviction_parameters": {}
+          },
+          {
+            "name": "retrieval",
+            "backend": "reference_storage",
+            "tier_path": "/tier/reference-cache",
+            "attribution_provider": "native_device_counter",
+            "staging_capacity_bytes": 3221225472,
+            "eviction_policy": "targeted",
+            "eviction_parameters": {
+              "fillers": 6,
+              "filler_tokens": 8192
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "bindings": {
+    "attribution_requests": [],
+    "break_even": null,
+    "admission": null,
+    "capacity": null,
+    "envelope_levels": []
+  }
+}

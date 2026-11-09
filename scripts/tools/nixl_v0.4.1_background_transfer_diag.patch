@@ -1,0 +1,55 @@
+--- a/nixl_storage_backend.py
++++ b/nixl_storage_backend.py
+@@ -14,6 +14,7 @@
+ 
+ # Standard
+ from abc import ABC, abstractmethod
++from concurrent.futures import Future
+ from dataclasses import dataclass
+ from typing import Any, Callable, List, Optional, Sequence, Set, Union, cast
+ from urllib.parse import quote as url_quote
+@@ -42,5 +43,14 @@
+ logger = init_logger(__name__)
+ 
+ 
++def _log_background_transfer_result(completed_future: Future[None]) -> None:
++    """Log completion or failure of a diagnostic background NIXL transfer."""
++    try:
++        completed_future.result()
++        logger.info("NIXL_DIAG background transfer completed")
++    except Exception:
++        logger.exception("NIXL_DIAG background transfer failed")
++
++
+ @dataclass
+ class NixlStorageConfig:
+@@ -694,6 +704,10 @@
+     async def mem_to_storage(
+         self, keys: Sequence[CacheEngineKey], mem_objs: List[MemoryObj]
+     ) -> None:
++        logger.info(
++            "NIXL_DIAG mem_to_storage entered: keys=%d memory_objs=%d",
++            len(keys), len(mem_objs),
++        )
+         mem_indices = [mem_obj.meta.address for mem_obj in mem_objs]
+ 
+         storage_indices = []
+@@ -705,6 +719,8 @@
+ 
+         handle = self.agent.get_mem_to_storage_handle(mem_indices, storage_indices)
++        logger.info("NIXL_DIAG transfer starting: objects=%d", len(mem_indices))
+         self.agent.post_blocking(handle)
++        logger.info("NIXL_DIAG transfer returned: objects=%d", len(mem_indices))
+         self.agent.release_handle(handle)
+ 
+         for key in keys:
+@@ -817,3 +833,8 @@
+-        asyncio.run_coroutine_threadsafe(
++        logger.info(
++            "NIXL_DIAG submit put: keys=%d memory_objs=%d available_descs=%d",
++            len(keys), len(memory_objs), available_descs,
++        )
++        future = asyncio.run_coroutine_threadsafe(
+             self.mem_to_storage(keys, memory_objs), self.loop
+         )
++        future.add_done_callback(_log_background_transfer_result)

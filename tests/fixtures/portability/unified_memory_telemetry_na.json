@@ -1,0 +1,18 @@
+{
+  "fixture_version": "0.1.0",
+  "case_id": "unified-memory-telemetry-na",
+  "host_profile": {
+    "architecture": "aarch64",
+    "memory_architecture": "unified",
+    "storage": "remote-block-posix"
+  },
+  "observation": {
+    "gpu_present": true,
+    "gpu_memory_usage_output": "[N/A]",
+    "gpu_memory_usage_exit_code": 0
+  },
+  "baseline": {
+    "current_classification": "known_detection_gap",
+    "target_capability_status": "unsupported"
+  }
+}

@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kv-hierarchy-probe:evidence:0.3.0",
+  "title": "kv-hierarchy-probe normalized evidence v0.3.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "provenance",
+    "validity",
+    "configurations",
+    "bindings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.3.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/provenance"
+    },
+    "validity": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/validity"
+    },
+    "configurations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/configurationEntry"
+      }
+    },
+    "bindings": {
+      "$ref": "#/$defs/bindings"
+    },
+    "evidence": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/evidence"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "validity": {
+            "properties": {
+              "fatal_observations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": ["evidence"]
+      }
+    }
+  ],
+  "$defs": {
+    "configurationEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fingerprint", "parameters"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "parameters": {
+          "$ref": "#/$defs/configurationParameters"
+        }
+      }
+    },
+    "configurationParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "kv_geometry",
+        "cache",
+        "runtime",
+        "measurement",
+        "arms"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/model"
+        },
+        "kv_geometry": {
+          "$ref": "#/$defs/kvGeometry"
+        },
+        "cache": {
+          "$ref": "#/$defs/cache"
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtime"
+        },
+        "measurement": {
+          "$ref": "#/$defs/measurement"
+        },
+        "arms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/arm"
+          }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "revision", "served_name"],
+      "properties": {
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "served_name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "kvGeometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chunk_tokens", "bytes_per_chunk", "dtype"],
+      "properties": {
+        "chunk_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bytes_per_chunk": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dtype": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["upper_tier_capacity_bytes"],
+      "properties": {
+        "upper_tier_capacity_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image_digest", "device_id"],
+      "properties": {
+        "image_digest": {
+          "description": "Stable, opaque identity of the serving software the run used, recorded verbatim. A content digest of the container image is the preferred value; any identifier stable across the campaign is valid, so publishing evidence never requires disclosing a private build.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^\\S(.*\\S)?$"
+        },
+        "device_id": {
+          "description": "Stable, opaque identity of the accelerator the run measured, recorded verbatim. A PCI address is the preferred value where the platform exposes one; any identifier stable across the campaign is valid. No vendor tool's output format is assumed.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^\\S(.*\\S)?$"
+        },
+        "gpu_index": {
+          "description": "Optional enumeration index of the measured device. Enumeration order is not stable across reboots or driver changes, so this never substitutes for device_id.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contexts", "concurrency", "samples", "warmup"],
+      "properties": {
+        "contexts": {
+          "$ref": "#/$defs/positiveIntegerList"
+        },
+        "concurrency": {
+          "$ref": "#/$defs/positiveIntegerList"
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "warmup": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "positiveIntegerList": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "backend",
+        "tier_path",
+        "attribution_provider",
+        "staging_capacity_bytes",
+        "eviction_policy",
+        "eviction_parameters"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier_path": {
+          "type": ["string", "null"]
+        },
+        "attribution_provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "staging_capacity_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eviction_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eviction_parameters": {
+          "type": "object"
+        }
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attribution_requests",
+        "break_even",
+        "admission",
+        "capacity",
+        "envelope_levels"
+      ],
+      "properties": {
+        "attribution_requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request_id", "configuration_id"],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "configuration_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "break_even": {
+          "type": ["string", "null"]
+        },
+        "admission": {
+          "type": ["string", "null"]
+        },
+        "capacity": {
+          "type": ["string", "null"]
+        },
+        "envelope_levels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["level_index", "configuration_id"],
+            "properties": {
+              "level_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "configuration_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,341 @@
+{
+  "schema_version": "0.3.0",
+  "run_id": "gate1-pass-filtered-counter",
+  "description": "normalized by g5-context-adapter from context run(s)",
+  "provenance": {
+    "normalized_by": {
+      "adapter": "g5-context-adapter",
+      "version": "0.3.0"
+    },
+    "artifacts": [
+      {
+        "id": "randomized-run1-gds",
+        "kind": "measurement_output",
+        "sha256": "96251e03a663e58c0d586205f1f5328c284bacb69adeee4f0b9b17ae2d5d4097"
+      },
+      {
+        "id": "randomized-run1-recompute",
+        "kind": "measurement_output",
+        "sha256": "0a7e64e742b7cc7256723f7195d7ee88ba26c0c93fb7cd3d38a8ca90e459b492"
+      }
+    ]
+  },
+  "validity": {
+    "fatal_observations": []
+  },
+  "configurations": [
+    {
+      "id": "config-a",
+      "fingerprint": "39080f786348029ddcba47b964453539488a6b50fdc8852782c7e5125bf45bf1",
+      "parameters": {
+        "model": {
+          "root": "/models/reference-32b",
+          "revision": "unrecorded",
+          "served_name": "reference-32b"
+        },
+        "kv_geometry": {
+          "chunk_tokens": 256,
+          "bytes_per_chunk": 67108864,
+          "dtype": "bfloat16"
+        },
+        "cache": {
+          "upper_tier_capacity_bytes": 3221225472
+        },
+        "runtime": {
+          "image_digest": "reference-build-discrete-01",
+          "device_id": "00000000:01:00.0",
+          "gpu_index": 0
+        },
+        "measurement": {
+          "contexts": [
+            4096
+          ],
+          "concurrency": [
+            1
+          ],
+          "samples": 10,
+          "warmup": 2
+        },
+        "arms": [
+          {
+            "name": "recompute",
+            "backend": "disabled",
+            "tier_path": null,
+            "attribution_provider": "serving_log",
+            "staging_capacity_bytes": 0,
+            "eviction_policy": "none",
+            "eviction_parameters": {}
+          },
+          {
+            "name": "gds",
+            "backend": "lmcache_native_gds",
+            "tier_path": "/tier/reference-gds",
+            "attribution_provider": "cgroup_blk",
+            "staging_capacity_bytes": 3221225472,
+            "eviction_policy": "targeted",
+            "eviction_parameters": {
+              "fillers": 6,
+              "filler_tokens": 8192
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "bindings": {
+    "attribution_requests": [
+      {
+        "request_id": "ctx4096-2",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-3",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-4",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-5",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-6",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-7",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-8",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-9",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-10",
+        "configuration_id": "config-a"
+      },
+      {
+        "request_id": "ctx4096-11",
+        "configuration_id": "config-a"
+      }
+    ],
+    "break_even": "config-a",
+    "admission": null,
+    "capacity": null,
+    "envelope_levels": []
+  },
+  "evidence": {
+    "attribution": {
+      "availability": {
+        "status": "supported"
+      },
+      "requests": [
+        {
+          "id": "ctx4096-2",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-3",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-4",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-5",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-6",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-7",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-8",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-9",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-10",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        },
+        {
+          "id": "ctx4096-11",
+          "correct": true,
+          "source": "target_tier",
+          "expected_bytes": 1073741824,
+          "observed_bytes": 1073741824,
+          "attribution": {
+            "provider": "cgroup_blk",
+            "granularity": "per_request",
+            "confidence": "corroborating",
+            "target_device_filtered": true,
+            "artifact_refs": [
+              "randomized-run1-gds"
+            ]
+          }
+        }
+      ],
+      "warmup_observations": {
+        "requests": 2,
+        "moved_no_bytes": 0,
+        "artifact_refs": [
+          "randomized-run1-gds"
+        ]
+      }
+    },
+    "break_even": {
+      "availability": {
+        "status": "supported"
+      },
+      "retrieval_ttft_s": [
+        0.18334012059494853
+      ],
+      "recompute_ttft_s": [
+        0.794259746093303
+      ]
+    },
+    "admission": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "admission_not_measured",
+        "detail": "No admission-cost run was supplied."
+      }
+    },
+    "capacity": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "capacity_not_measured",
+        "detail": "No capacity sweep was supplied."
+      }
+    },
+    "envelope": {
+      "availability": {
+        "status": "unsupported",
+        "reason_code": "concurrency_not_measured",
+        "detail": "No concurrency sweep was supplied."
+      }
+    }
+  }
+}
