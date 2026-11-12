@@ -6,6 +6,7 @@ substitute for [`METHOD.md`](../METHOD.md).
 
 Use them when a result raises a structural question such as:
 
+- Which memory and transfer assumptions change on a unified-memory host?
 - Who owns the cache key, placement, eviction, and byte transfer?
 - Why is an LMCache chunk larger than a vLLM KV block?
 - Why do buffered POSIX, native cuFile GDS, and LMCache NIXL static storage leave
@@ -23,6 +24,9 @@ Use them when a result raises a structural question such as:
    fingerprint contract, measurement bindings, image/device identity rationale,
    and multi-GPU limitations after using the short configuration workflow.
 
+5. [`UNIFIED-MEMORY-LESSONS.md`](UNIFIED-MEMORY-LESSONS.md) — distinguish logical cache
+   tiers, shared physical memory, network transport and repeated application validation.
+
 ## Evidence labels
 
 Every note uses the same labels:
@@ -38,8 +42,10 @@ host-scoped result into a general benchmark claim.
 
 ## Version and correction policy
 
-These documents were last checked on **2026-09-29**. LMCache, Dynamo KVBM, vLLM, and NIXL
-change quickly. A class name or lifecycle described here may move or disappear.
+The implementation-anatomy notes were last checked on **2026-09-29**. The
+unified-memory lessons were reviewed on **2026-11-12**; each note states its scope.
+LMCache, Dynamo KVBM, vLLM, and NIXL change quickly. A class name or lifecycle
+described here may move or disappear.
 
 When correcting a note, please include one of the following in the pull request:
 
