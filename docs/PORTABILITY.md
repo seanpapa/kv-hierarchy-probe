@@ -36,8 +36,8 @@ Then answer, in order:
 
 ## Naming the device on a new platform
 
-Question 3 is a precondition for emitting evidence at all, not a nicety. Because the byte counters
-this tool reads are host-wide, a normalized document cannot say which accelerator produced it, so
+Question 3 is a precondition for emitting evidence at all, not a nicety. Storage byte counters do not identify the
+accelerator that issued the I/O, even when filtered to one block device, so
 `runtime.device_id` is required and the fingerprint covers it. Two devices that reach the tier at
 different cost would otherwise share one fingerprint and merge into a single document.
 
@@ -64,32 +64,39 @@ the configuration; surrounding or control whitespace is refused rather than trim
 trimming would hide exactly that drift. See
 [Configuration identity](CONFIGURATION.md#why-the-device-is-part-of-the-identity).
 
-## First portability target — DGX Spark
+## DGX Spark — lessons and remaining validation
 
-DGX Spark is deliberately the first validation target because GB10's coherent unified system
-memory breaks assumptions learned on a discrete GPU server. The initial validation is successful
-when the tool reports those differences honestly, even if no storage-tier performance result is
-publishable.
+Earlier validation on DGX Spark exposed assumptions from discrete-memory GPU
+servers. The [unified-memory lessons](reference/UNIFIED-MEMORY-LESSONS.md) separate
+those observations from current source-confirmed facts and unverified conclusions.
+They are not certification of the entire public baseline on this platform.
 
-Expected checks, not pre-recorded results:
+Already represented in the public baseline:
 
-- GPU discovery succeeds independently of the optional `nvidia-smi memory.used` query.
-- GB10 is classified as `unified`; an unsupported memory-usage query is not treated as “no GPU.”
-- Absence of `nvidia-fs`, GDS, or GPUDirect attribution leaves the current adapter `limited` rather
-  than silently substituting framework counters.
-- LMCache or KVBM host offload, if exercised, is described as a logical allocation path; it is not
-  reported as a discrete HBM→host-DRAM tier without physical separation evidence.
-- A `runtime.device_id` can be recorded for GB10 without assuming PCI addressing or `nvidia-smi`
-  output, and it is stable across a reboot. The bundled
-  [`attribution-unfiltered-counter.json`](../examples/evidence/attribution-unfiltered-counter.json)
-  example already carries a non-PCI identity for a unified-memory Arm64 host.
-- The GPU-free `first-visit` journey and automatic reports run unchanged on Arm64.
+- GPU discovery is independent of the optional `nvidia-smi memory.used` query;
+  an unsupported query does not turn a detected GPU into a CPU-only host.
+- The GB10 classification is `unified`, with an explicit confidence/basis. This
+  does not measure free memory or prove how a serving engine allocates its caches.
+- `runtime.device_id` accepts an opaque non-PCI identity; the bundled
+  [`unfiltered-counter example`](../examples/evidence/attribution-unfiltered-counter.json)
+  illustrates that shape. A valid identity field does not repair insufficient attribution.
 
-After the first run, preserve the manifest, console output, normalized evidence, raw evidence, and
-checksums. Any Spark-specific fix should become a general capability rule or adapter test; avoid a
-host-name special case.
+For each new runtime or data path, still verify:
+
+- Which logical allocations share physical memory, and which copies still occur.
+- The exact filesystem/backend/device/transport path, rather than module presence.
+- External evidence at the intended scope; unavailable evidence stays unsupported.
+- Correctness and repeated buffer use in the application, beyond a transfer smoke test.
+- Device identity stability and the complete first-visit workflow on the target host.
+
+Preserve the manifest, console output, configuration, evidence and checksums.
+Turn platform-specific findings into capability rules or adapter tests, rather
+than private host-name special cases. Earlier experiments do not establish CPU-memory
+tier service, a remote-tier performance claim or a distributed operating envelope.
 
 ## Release boundary
 
-The CPU-only CI path runs before Spark validation. Public `v0.1.0` release preparation happens
-after the Spark findings are folded back into capability discovery, documentation, and tests.
+Public repository access and a versioned release are separate steps. This note
+adds lessons, not a new release or hardware-verification claim. Follow
+[RELEASING.md](RELEASING.md) and record which tree and paths were actually checked
+before tagging; an earlier platform run is not validation of later changes.

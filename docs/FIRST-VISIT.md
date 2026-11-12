@@ -239,15 +239,14 @@ combination of `measurement ready: true` and `lmcache: not_detected` is therefor
 possible: the checks have different scopes. For a container deployment, inspect
 the engine environment and configuration inside the serving container separately.
 
-**A loaded `nvidia-fs` does not imply a local native path.** We over-read this
-output once ourselves. On the GB10 host above, `nvidia_fs: available` reports
-that the module's stats file exists — but a native-mode GDS read of its *local*
-SSD is not available on that platform, while GDS over RDMA to a remote target
-does work. So `available` here says a counter source is a candidate, not that
-any particular device can be reached natively. Which path the platform actually
-supports is a question for `gdscheck -p` and a measured run, and on a host like
-this the local NVMe arm is buffered POSIX with a cgroup counter, or
-`SKIP_UNSUPPORTED`.
+**A loaded `nvidia-fs` does not validate a native path.** In earlier GB10
+validation, discovery found the statistics path, but the tested local-storage
+configuration did not establish native GDS access. That observation does not
+settle support for another filesystem, remote transport or future stack.
+`available` names a candidate counter source. Check the exact path with
+`gdscheck -p` and a controlled run; missing evidence stays unsupported. See the
+[unified-memory lessons](reference/UNIFIED-MEMORY-LESSONS.md) for the distinction
+between discovery, transport and verified tier service.
 
 ### Evidence map
 
