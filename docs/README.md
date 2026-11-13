@@ -22,7 +22,7 @@ This directory contains the method, reproducibility notes, and release controls 
 | [`EXTERNAL-RUNS.md`](EXTERNAL-RUNS.md) | Context-run shape for stacks without reference scripts (e.g. Dynamo KVBM), and what a phantom tier looks like. | `python -m kvprobe ingest` |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | Short workflow to record the exact run setup and generate its fingerprint. | `python -m kvprobe fingerprint` |
 | [`GEOMETRY.md`](GEOMETRY.md) | Resolve a model config and derive standard-attention KV bytes from it plus explicit runtime dtype, chunk, and TP settings. | `python -m kvprobe geometry` |
-| [`PORTABILITY.md`](PORTABILITY.md) | Capability-first validation sequence; DGX Spark is the first target. | `python -m kvprobe doctor` |
+| [`PORTABILITY.md`](PORTABILITY.md) | Capability-first validation sequence for a new platform, with DGX Spark lessons and the validation that remains. | `python -m kvprobe doctor` |
 | [`NIXL-STATIC-GDS-MATCHED.md`](NIXL-STATIC-GDS-MATCHED.md) | Historical v0.4.1 reproduction for native `GdsBackend` vs LMCache NIXL static + `GDS_MT`. | `tools/nixl_matched.sh`, `tools/compare_matched.py` |
 | [`NIXL-MODE-MATRIX.md`](NIXL-MODE-MATRIX.md) | Newer-upstream POSIX/GDS_MT × static/dynamic experiment, gates, and identity rules. | `tools/nixl_mode_matrix.sh`, `tools/compare_matched.py` |
 | [`NIXL-POOL-SIZING.md`](NIXL-POOL-SIZING.md) | Policy-free static-pool capacity arithmetic, required observations, and the sizing sweep contract. | `python -m kvprobe pool-plan` |
@@ -70,8 +70,8 @@ or counter pattern.
 - [`CONFIGURATION.md`](CONFIGURATION.md) gives the short workflow for copying the example,
   recording the live run setup, checking it, and generating its fingerprint. Detailed design
   rationale is kept in [`reference/`](reference/CONFIGURATION-IDENTITY.md).
-- [`PORTABILITY.md`](PORTABILITY.md) defines the capability-first validation sequence, beginning
-  with DGX Spark.
+- [`PORTABILITY.md`](PORTABILITY.md) defines the capability-first validation sequence and records
+  what DGX Spark validation taught and what remains to verify.
 - [`NIXL-STATIC-GDS-MATCHED.md`](NIXL-STATIC-GDS-MATCHED.md) gives the matched native
   `GdsBackend` versus NIXL `GDS_MT` reproduction procedure and its historical 2026-09-08 strict-gate result.
 - [`NIXL-POOL-SIZING.md`](NIXL-POOL-SIZING.md) defines how configured slots, intended live
