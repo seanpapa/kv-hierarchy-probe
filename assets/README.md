@@ -23,3 +23,11 @@ Diagram implemented and revised with the assistance of OpenAI Codex. Concept,
 technical content and final review by Andy Kim, 2026.
 
 Licensed under Apache-2.0 as part of the repository documentation.
+
+## `docs/assets/kv-granularity-to-logical-io.svg`
+
+Diagram adapted from a presentation slide, produced primarily with the
+assistance of Anthropic Claude, with supplementary use of OpenAI tools. Concept,
+technical content and final review by Andy Kim, 2026.
+
+Licensed under Apache-2.0 as part of the repository documentation.
