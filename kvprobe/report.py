@@ -79,8 +79,11 @@ _PASSING_CONFIDENCE = {"direct", "corroborating"}
 #: added Gate 3/4 count context. 0.6.0 includes every classified reuse attempt
 #: in Gate 3 repayment; Gate 4 keeps its overflow-count result. 0.6.1 states
 #: the Gate 5 result at batch level (the counters cover a batch, not a request)
-#: and names the per-request input size when the evidence records it.
-ASSESSMENT_VERSION = "0.6.1"
+#: and names the per-request input size when the evidence records it. 0.6.2
+#: no longer says the producer's records show whether a Gate 4 store or load
+#: failed: they can separate no observed write from write activity without an
+#: established retrieval, which does not place the entry on the target device.
+ASSESSMENT_VERSION = "0.6.2"
 _GATE_STATUSES = {"PASS", "FAIL", "UNPROVEN", "SKIP_UNSUPPORTED", "INVALID"}
 _FATAL_SCOPES = {"measurement"}
 
@@ -967,8 +970,11 @@ def _capacity_result(
         f"the upper tier overflowed, but beyond its capacity the target tier served "
         f"only {served} of {total} retrievals and {lost} fell back to recompute or "
         "missed: the tier is needed there but did not serve what overflowed — "
-        "check both the store and the load path (the producer's per-request "
-        "write/read records show which failed) before relying on it"
+        "before relying on it, read the producer's per-request store and "
+        "retrieval records where it keeps them: they can separate a store with "
+        "no observed write from one with write activity observed but retrieval "
+        "not established, and observed write activity alone does not show that "
+        "an entry reached the target device"
     )
 
 

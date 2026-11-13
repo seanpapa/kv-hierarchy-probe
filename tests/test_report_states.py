@@ -38,7 +38,7 @@ class EvidenceVerdictTests(unittest.TestCase):
         """Only five passing gates expose numeric performance."""
         assessment = assess_evidence(_load("pass-capabilities.json"))
 
-        self.assertEqual(assessment["assessment_version"], "0.6.1")
+        self.assertEqual(assessment["assessment_version"], "0.6.2")
         self.assertEqual(assessment["overall"], "PASS")
         self.assertEqual(assessment["performance_claims"], "allowed")
         self.assertEqual(

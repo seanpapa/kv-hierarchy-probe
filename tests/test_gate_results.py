@@ -256,6 +256,26 @@ class GateResultTests(unittest.TestCase):
         self.assertIn("served only 4 of 15", gate["result"])
         self.assertIn("8 fell back", gate["result"])
 
+    def test_capacity_result_does_not_claim_the_records_locate_the_failure(
+        self,
+    ) -> None:
+        """Observed write activity is not shown as an entry on the target device."""
+        payload = _pass()
+        counts = {
+            "retrievals_expected": 15,
+            "upper_tier_served": 3,
+            "target_tier_served": 4,
+            "fallback": 8,
+            "miss": 0,
+        }
+        payload["evidence"]["capacity"]["classification_counts"] = dict(counts)
+        payload["evidence"]["capacity"]["overflow_classification_counts"] = dict(counts)
+        result = _gate(assess_evidence(payload), 4)["result"]
+        self.assertIn("no observed write", result)
+        self.assertIn("retrieval not established", result)
+        self.assertIn("does not show that an entry reached the target device", result)
+        self.assertNotIn("show which failed", result)
+
     def test_admission_result_states_its_sample_count(self) -> None:
         """Most stores dropped: the cost is stated as low-confidence."""
         payload = _pass()
