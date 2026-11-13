@@ -112,18 +112,24 @@ sentences of the form "X *is* validated" belong here.
 If a claim here can no longer be stated accurately, **delete it rather than letting it age.** An
 absent line costs a reader nothing; a stale one costs them trust in every other line.
 
-## Current status — 2026-10-05
+## Current status — 2026-11-13
 
+- The hardware-verified scope is the one in the
+  [README scope table](../README.md#scope--what-is-verified-today): local NVMe on three named paths.
+  What is not verified yet, known limitations in that path and planned work are listed in
+  [`ROADMAP.md`](ROADMAP.md).
 - The GPU-free first-visit path is implemented: one guided `first-visit` command, `doctor`, four
-  bundled demo cases, automatic five-gate reports, claim suppression, and CPU-only CI. Capability
-  work has begun on DGX Spark, but this repository does not claim turnkey cross-platform support
-  or distributed performance.
+  bundled demo cases, automatic five-gate reports, claim suppression, and CPU-only CI. DGX Spark
+  validation produced the measurement lessons in
+  [`reference/UNIFIED-MEMORY-LESSONS.md`](reference/UNIFIED-MEMORY-LESSONS.md), not a
+  hardware-verified tier; [`PORTABILITY.md`](PORTABILITY.md) lists the validation that remains.
+  This repository does not claim turnkey cross-platform support or distributed performance.
 - The documented visitor path now continues from first-visit to Gate 1 preparation and
   evidence review, then Gates 2–5. Experimental `gate1 plan`, `capture`, `analyze` and `verify`
   commands exist. The separate NVMe `gate1 verify` review is limited to serial native
   cuFile GDS; independent trace filter/clock acceptance and an actual `verified` serving
   run under that contract remain unestablished. Further NVMe feature expansion is paused;
-  completion of that verification track is not a public-release prerequisite. It does not
+  completion of that verification track was not a prerequisite for the public baseline. It does not
   replace common validation or the evidence report's Gate 1 verdict.
 - A 2026-10-05 re-measurement at 4,096 context tokens produced report Gate 1 and Gate 2
   `PASS` in all nine cache-arm evidence documents (buffered POSIX, native cuFile GDS and
