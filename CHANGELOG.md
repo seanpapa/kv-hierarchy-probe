@@ -41,8 +41,10 @@ supports it.
 
 ### Known limits
 
-- Only a **local NVMe** tier has passed Gate 1 on hardware, on a single-path device. A DRAM tier is
-  inferred, not verified; remote tiers need their own evidence adapters.
+- All five gates have been measured together for one native cuFile GDS configuration on a local,
+  single-path NVMe tier. These results are configuration-specific. Separate runs passed Gates 1 and 2
+  on three local NVMe paths: buffered POSIX, native GDS and NIXL static `GDS_MT`. CPU DRAM serving
+  remains inferred, and remote tiers require their own evidence sources and validation.
 - Hardware results come from one host and one stack; there is no independent reproduction yet.
 - The NIXL mode matrix runner is not hardware-verified.
 - `0.1.0` is the first public release; data contracts may change before 1.0 under the rules in
