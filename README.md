@@ -15,7 +15,8 @@ recomputed the KV, hit a resident buffer, or silently fallen back to another pat
 turns those failure modes into five ordered gates. The floor of the hierarchy is **recompute**, so a
 tier must first prove that it served the request and then show when it beats rebuilding the KV.
 
-**Explore:** [Quick start](#start-here) · [Five gates](#the-five-gates-at-a-glance) · [Roadmap & known limitations](docs/ROADMAP.md)
+**Explore:** [Start here](#start-here) · [Five gates](#the-five-gates-at-a-glance) ·
+[Scope](#scope--what-is-verified-today) · [Roadmap & known limitations](docs/ROADMAP.md)
 
 ## Start here
 
@@ -181,11 +182,12 @@ one. See [Profiles and version direction](docs/PROFILES.md).
 
 **Public development baseline.** The portable CLI, normalized evidence contract, five-gate
 assessment, geometry tools, and one reference implementation are available. A versioned release
-has not yet been tagged. The reference stack has been exercised on controlled hardware, but the
-repository does not claim independent reproduction or general performance across products and
-systems. Current evidence and its limits are documented in
-[EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md). What is not verified yet,
-known limitations in the verified path, and what is planned are listed in [ROADMAP](docs/ROADMAP.md).
+has not yet been tagged (package version 0.1.0, see [CHANGELOG](CHANGELOG.md)). The reference stack
+has been exercised on controlled hardware, but the repository does not claim independent
+reproduction or general performance across products and systems. Current evidence and its limits
+are documented in [EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md). What is
+not verified yet, known limitations in the verified path, and what is planned are listed in
+[ROADMAP](docs/ROADMAP.md).
 
 ## License
 
