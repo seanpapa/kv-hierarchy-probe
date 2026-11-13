@@ -392,8 +392,10 @@ limit by one entry without removing it, so a long enough scan of overflowing ent
   calls complete but the counter never saw is this case.
 - Look for the "in the storage, but it can't be retrieved" line next to zero-token retrievals.
 - Read the producers' per-request records — Gate 3 `attempts`, Gate 4 `stores` and `retrievals` —
-  to tell a store that never wrote from an entry that was written and then failed to load. Note which
-  transfer came just before each failure.
+  to tell a store with no observed write from one whose write activity was observed but whose
+  retrieval was not established. The write counters are host-wide, so observed write activity alone
+  does not prove that the entry reached the target device. Note which transfer came just before each
+  failure.
 - Run once at debug log level: the allocation failures appear there and nowhere else.
 - Repeat with a pool larger than one entry and watch the drops and fallbacks change.
 
@@ -401,9 +403,10 @@ limit by one entry without removing it, so a long enough scan of overflowing ent
 from the GPU-resident buffer reads zero device bytes and is misclassified as an upper-tier hit. This
 backend needs headroom above one entry to move entries reliably. Record both the pool size and the
 entry size, and read the Gate 4 counts, not only the crossover: a crossover with many fallbacks
-beyond it says the tier did not serve what overflowed in that configuration. The records say whether
-the entries were never stored or were stored and could not be loaded; in the runs behind this entry
-it was the latter.
+beyond it says the tier did not serve what overflowed in that configuration. The records separate
+stores with no observed write from stores whose write activity was observed but whose retrieval was
+not established; in the runs behind this entry the failures were of the second kind. Because the
+write counters are host-wide, that alone does not prove the entries reached the target device.
 
 **Invalidates.** Admission economics computed from successful attempts only; any "the tier served the overflow"
 claim without the beyond-capacity counts; engine store throughput as evidence of a write.

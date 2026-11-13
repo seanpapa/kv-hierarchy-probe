@@ -133,7 +133,7 @@ the storage is attached.
 | **NVMe** (local) — verified paths: buffered POSIX, LMCache native GDS and NIXL static `GDS_MT`; NIXL POSIX/mode-matrix paths are implemented but are not part of this verified set | The tier under test | Per-request bytes on the tier's block device (cgroup `io.stat`, filtered to that device); host-wide `nvidia-fs` as corroboration | **Can pass** — the three named paths were verified on a single-path device with native NVMe multipath disabled (`nvme_core` `multipath=N`) | Check byte attribution under native or dm multipath |
 | **DRAM** — CPU memory (LMCache's local CPU cache) | The upper tier that Gates 3 and 4 compare against | Inferred only: zero device read with TTFT well below recompute | **Cannot pass** — no per-request byte counter for memory; the classification is a heuristic | An evidence source for memory-tier hits |
 | **REMOTE · block attachment** — e.g. an NVMe-oF namespace mounted on the GPU server | Same path as local NVMe in principle: the namespace is a local block device | Same counters as local NVMe | **Not hardware-verified.** Native GDS availability depends on the platform, filesystem and transport; the reference runbook refuses `use_compat_mode: true`. The POSIX arm does not require a native GDS path. Fabric multipath splits the device the bytes are recorded on, and that is unverified (row above). Initiator bytes prove transfer from the target, not whether the target served them from cache or media | Hardware check over RDMA and TCP, single path and multipath |
-| **REMOTE · file/object attachment** — e.g. NFS over RDMA, object storage, network KV stores | Planned, with the disaggregated profile ([PROFILES](docs/PROFILES.md)) | No block device on the GPU server, so the device-filtered counter sees nothing; for GDS over NFS, host-wide `nvidia-fs` can corroborate only | **Cannot pass** today — at most `UNPROVEN` | An evidence adapter that counts per-request bytes at the client, connection or store |
+| **REMOTE · file/object attachment** — e.g. NFS over RDMA, object storage, network KV stores | Planned: as one endpoint's lower tier once an evidence provider exists; shared-cache and prefill/decode use belong to the disaggregated profile ([PROFILES](docs/PROFILES.md)) | No block device on the GPU server, so the device-filtered counter sees nothing; for GDS over NFS, host-wide `nvidia-fs` can corroborate only | **Cannot pass** today — at most `UNPROVEN` | An evidence adapter that counts per-request bytes at the client, connection or store |
 
 **The gates are stack-agnostic; the reference scripts are not.** Any adapter must provide:
 
@@ -181,7 +181,8 @@ one. See [Profiles and version direction](docs/PROFILES.md).
 tools, and one reference implementation are present. The reference stack has been exercised on
 controlled hardware, but the repository does not claim independent reproduction or general
 performance across products and systems. Current evidence and its limits are documented in
-[EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md).
+[EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md). What is not verified yet,
+known limitations in the verified path, and what is planned are listed in [ROADMAP](docs/ROADMAP.md).
 
 ## License
 
