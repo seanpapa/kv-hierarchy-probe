@@ -4,7 +4,7 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
-## 0.1.0 — unreleased (first public baseline)
+## 0.1.0 — 2026-11-13 (first public release)
 
 ### What it is
 
@@ -33,6 +33,11 @@ supports it.
   the four bundled reports and separates them from optional host-capability detail.
 - **Method documents**: the five gates, a measurement checklist, a failure catalog of plausible but
   false results, and portability notes.
+- **Documentation added after the repository opened (2026-11-10):** a [roadmap](docs/ROADMAP.md)
+  of unverified scope and known limitations,
+  [unified-memory lessons](docs/reference/UNIFIED-MEMORY-LESSONS.md), and the 2026-10-08 all-five
+  run in the [docs index](docs/README.md) status block. The Gate 4 result no longer says the
+  producer's records show which transfer failed.
 
 ### Known limits
 
@@ -40,5 +45,6 @@ supports it.
   inferred, not verified; remote tiers need their own evidence adapters.
 - Hardware results come from one host and one stack; there is no independent reproduction yet.
 - The NIXL mode matrix runner is not hardware-verified.
-- The first public package baseline is `0.1.0`; data contracts may change before 1.0 under the rules in
+- `0.1.0` is the first public release; data contracts may change before 1.0 under the rules in
   [VERSIONING](docs/VERSIONING.md).
+- What is planned or not yet verified is listed in the [roadmap](docs/ROADMAP.md).

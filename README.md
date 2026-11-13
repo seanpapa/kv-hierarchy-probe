@@ -180,13 +180,14 @@ one. See [Profiles and version direction](docs/PROFILES.md).
 
 ## Project status
 
-**Public development baseline.** The portable CLI, normalized evidence contract, five-gate
-assessment, geometry tools, and one reference implementation are available. A versioned release
-has not yet been tagged (package version 0.1.0, see [CHANGELOG](CHANGELOG.md)). The reference stack
-has been exercised on controlled hardware, but the repository does not claim independent
-reproduction or general performance across products and systems. Current evidence and its limits
-are documented in [EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md). What is
-not verified yet, known limitations in the verified path, and what is planned are listed in
+**First public release: `v0.1.0` (2026-11-13).** The portable CLI, normalized evidence contract,
+five-gate assessment, geometry tools, and one reference implementation are available; the tag is
+listed under GitHub Releases and its notes are in the [CHANGELOG](CHANGELOG.md). Development
+continues on `main`, and data contracts may change before 1.0 under [VERSIONING](docs/VERSIONING.md).
+The reference stack has been exercised on controlled hardware, but the repository does not claim
+independent reproduction or general performance across products and systems. Current evidence and
+its limits are documented in [EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md).
+What is not verified yet, known limitations in the verified path, and what is planned are listed in
 [ROADMAP](docs/ROADMAP.md).
 
 ## License

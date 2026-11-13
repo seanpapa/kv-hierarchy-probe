@@ -12,7 +12,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 
 | Rule | |
 |---|---|
-| Format | `MAJOR.MINOR.PATCH`. The package follows PEP 440 (`0.1.0` is the first public baseline). |
+| Format | `MAJOR.MINOR.PATCH`. The package follows PEP 440 (`0.1.0` is the first public release). |
 | Before 1.0 | An **incompatible** change bumps MINOR (`0.2.x` → `0.3.0`). A compatible addition or a correction bumps PATCH. |
 | From 1.0 | Semantic versioning: incompatible → MAJOR, compatible addition → MINOR, correction → PATCH. |
 | `-experimental` | Marks a contract whose producer has not passed acceptance. Removing the suffix is itself a recorded change. |
@@ -43,7 +43,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 
 ## Versions at first public release
 
-The registry above describes the first public package baseline, `0.1.0`. Its independent data-contract
+The registry above describes the first public release, `0.1.0`. Its independent data-contract
 numbers are retained; a package release does not reset them. The public changelog summarizes the
 implemented behavior rather than replaying unpublished development releases.
 

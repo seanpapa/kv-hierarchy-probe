@@ -25,8 +25,8 @@ describe intended behaviour, that answer will say so and point at the document t
 
 ## Supported versions
 
-The first public package baseline is `0.1.0`; there are no earlier public versions to backport to. Fixes
-land on `main`.
+The first public release is `0.1.0`; there are no earlier public versions to backport to. Fixes
+land on `main` and ship in the next version.
 
 Report against `main`. Please include the version fields relevant to the problem, because this
 project versions its data contracts separately from the package: the package version, the evidence
