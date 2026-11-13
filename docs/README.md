@@ -139,7 +139,9 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
     cgroup counter (`corroborated`).
   - Gate 2: request TTFT p50 0.18 s on retrieval versus 0.77 s on recompute, 10 samples each.
   - Gate 3: `ECONOMICAL`, 0.23 reuses to repay admission against an expected 1, counting all 10
-    attempts: 5 served by the tier and 5 `store_unattributed` (no observed write during the store).
+    attempts: 5 served by the tier and 5 `store_unattributed` (no observed write during the store),
+    although the engine logged all 10 stores as complete. Counting only the successful attempts
+    would give 0.12, so counting every attempt nearly doubles the reuses needed.
   - Gate 4: in working sets beyond the upper tier's capacity, the tier served 4 of 15 retrievals;
     3 were classified as upper-tier hits, and 8 fell back or missed. The tier was needed there
     but did not serve all the overflow.
