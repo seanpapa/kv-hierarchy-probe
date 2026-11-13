@@ -131,6 +131,27 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
   run under that contract remain unestablished. Further NVMe feature expansion is paused;
   completion of that verification track was not a prerequisite for the public baseline. It does not
   replace common validation or the evidence report's Gate 1 verdict.
+- On 2026-10-08 all five gates were measured in one run of one declared configuration, on the
+  host and model of the 2026-10-05 re-measurement: a native cuFile GDS arm with its recompute arm,
+  4,096-token entries of 1 GiB, and a 1 GiB staging pool so that Gate 4 can classify hits. The
+  report under the current assessment (`0.6.2`) is `PASS` with performance claims allowed:
+  - Gate 1: 10/10 requests moved the expected bytes on the tier's own disk, per the per-device
+    cgroup counter (`corroborated`).
+  - Gate 2: request TTFT p50 0.18 s on retrieval versus 0.77 s on recompute, 10 samples each.
+  - Gate 3: `ECONOMICAL`, 0.23 reuses to repay admission against an expected 1, counting all 10
+    attempts: 5 served by the tier and 5 `store_unattributed` (no observed write during the store).
+  - Gate 4: in working sets beyond the upper tier's capacity, the tier served 4 of 15 retrievals;
+    3 were classified as upper-tier hits, and 8 fell back or missed. The tier was needed there
+    but did not serve all the overflow.
+  - Gate 5, at 2,048 tokens per request: every batch met its byte and correctness checks through
+    concurrency 2; the batches above it did not and are not credited to the tier.
+
+  A gate passes when its measurement is valid, not when the tier serves every request. The Gate 3
+  and Gate 4 limits match the staging-pool behaviour in
+  [`FAILURE-CATALOG.md` §13](FAILURE-CATALOG.md#staging-buffer-full), and the pool was sized for
+  Gate 4's one-entry rule, not for throughput. This is one host, one model, one configuration and
+  one run, not cross-platform validation. Its evidence bundle and report are retained in
+  access-controlled storage; no document from this run is bundled in `examples/`.
 - A 2026-10-05 re-measurement at 4,096 context tokens produced report Gate 1 and Gate 2
   `PASS` in all nine cache-arm evidence documents (buffered POSIX, native cuFile GDS and
   NIXL `GDS_MT`, three runs each). All 90 measured cache-arm requests recorded the expected
