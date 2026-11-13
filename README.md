@@ -181,7 +181,8 @@ one. See [Profiles and version direction](docs/PROFILES.md).
 tools, and one reference implementation are present. The reference stack has been exercised on
 controlled hardware, but the repository does not claim independent reproduction or general
 performance across products and systems. Current evidence and its limits are documented in
-[EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md).
+[EVIDENCE](docs/EVIDENCE.md) and [REVALIDATION](docs/REVALIDATION.md). What is not verified yet,
+known limitations in the verified path, and what is planned are listed in [ROADMAP](docs/ROADMAP.md).
 
 ## License
 

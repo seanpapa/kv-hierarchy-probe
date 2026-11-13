@@ -13,6 +13,7 @@ This directory contains the method, reproducibility notes, and release controls 
 | [`GATE1-SERVING-REVIEW.md`](GATE1-SERVING-REVIEW.md) | Experimental scoped serving review for a serial native cuFile GDS run; operator evidence and automatic checks must agree. | `python -m kvprobe gate1 verify` |
 | [`VERSIONING.md`](VERSIONING.md) | Versioning rules and the one registry of package and data-contract versions. | `python -m unittest tests.test_versioning` |
 | [`RELEASING.md`](RELEASING.md) | How a release is versioned, checked, tagged and published; what happens after a defective release. | — |
+| [`ROADMAP.md`](ROADMAP.md) | What is not verified yet, known limitations in the verified path, and planned work, with the condition that closes each item. | scope boundary and next steps |
 | [`PROFILES.md`](PROFILES.md) | V1 component-tier claim boundary, v1 generality work, and the v2 disaggregated-path extension. | product, evidence, and adapter direction |
 | [`METHOD.md`](METHOD.md) | The procedure in full — the five gates, what counts as evidence, canonical terms. **Read this to understand.** | measurement and claim rules across evidence paths |
 | [`CHECKLIST.md`](CHECKLIST.md) | Common measurement checks and gate-specific criteria, with implementation coverage and operator responsibilities. | Gate 1 evidence review and every Gate 2–5 experiment, including reference scripts and external producers |
