@@ -85,7 +85,7 @@ Contributions are accepted under the project's licence, Apache-2.0 (see [LICENSE
 
 ## Support
 
-This project has no tagged release yet and is maintained alongside other work; replies are best
-effort. These are treated first: a broken installation, a wrong verdict or claim boundary, exposure
-of sensitive data, and an unusable first-visit path. Feature requests and broader hardware coverage
-are welcome, and are planned rather than handled as emergencies.
+This project is maintained alongside other work; replies are best effort. These are treated first:
+a broken installation, a wrong verdict or claim boundary, exposure of sensitive data, and an
+unusable first-visit path. Feature requests and broader hardware coverage are welcome, and are
+planned rather than handled as emergencies.
