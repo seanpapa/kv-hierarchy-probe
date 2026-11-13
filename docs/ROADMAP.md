@@ -4,8 +4,9 @@
 > It is not a schedule. Items move or close through pull requests that update this page.
 
 **Verified today:** local NVMe only, on the paths listed in
-[Scope — what is verified today](../README.md#scope--what-is-verified-today). Everything below is outside
-that scope until this page says otherwise.
+[Scope — what is verified today](../README.md#scope--what-is-verified-today). The sections below separate
+known limitations in those paths from work beyond the verified scope. Open questions and planned work
+do not extend that scope.
 
 A valid measurement that shows a tier is not worth it is a useful result. Reports from other hardware
 and stacks are welcome as GitHub issues, including results that do not pass; please leave out host
@@ -36,15 +37,18 @@ while, so the next transfer is the one that fails. A larger pool moved the limit
 Both gates classify an outcome that did not come from the target tier as `fallback`. Every attempt stays
 in the calculation, but cases that need different diagnoses share one count.
 
-- **Gate 4:** a `fallback` beyond capacity can mean the entry was never written, or that it was written
-  and then failed to load. The producer keeps per-request `stores` and `retrievals` records that tell
-  the two apart, but the report reads only the counts ([METHOD, Gate 4](METHOD.md#gate-4--capacity-crossover)).
+- **Gate 4:** a `fallback` beyond capacity can follow a store with no observed write, or one with
+  write activity observed but retrieval not established. The producer keeps these observations in
+  per-request `stores` and `retrievals` records, but the report reads only the counts
+  ([METHOD, Gate 4](METHOD.md#gate-4--capacity-crossover)). The write counters are host-wide:
+  observed write activity alone does not prove that the entry reached the target device.
 - **Gate 3:** a reuse attempt classified as `fallback` can be a recompute or a hit served by an upper
   tier. Neither receives positive saving credit, so the break-even result does not change
   ([METHOD, Gate 3](METHOD.md#gate-3--admission-cost)).
-- **Closes when:** the Gate 4 report states "never stored" and "stored, failed to load" separately,
-  with tests, an assessment version bump and no change to existing verdicts; and the Gate 3 question
-  is either implemented the same way or written down as a limit.
+- **Closes when:** the Gate 4 report distinguishes "no observed store write" from "store write
+  observed, retrieval not established", retaining the counter's scope and any uncertainty, with tests,
+  an assessment version bump and no change to existing verdicts; and the Gate 3 question is either
+  implemented the same way or written down as a limit.
 
 ### Gate 4: the one-entry staging rule conflicts with backends that need headroom
 
@@ -76,9 +80,10 @@ A host with several GPUs is not the same as a request using several GPUs:
 
 ### An evidence source for a CPU-memory (DRAM) tier
 
-DRAM is the upper tier that Gates 3 and 4 compare against, but it **cannot pass Gate 1**: memory has no
-per-request byte counter, so a DRAM hit is only inferred. Gate 1 needs evidence from outside the serving
-framework that the intended memory allocation served a given request in a controlled interval. A
+DRAM is the upper tier that Gates 3 and 4 compare against, but its service **cannot be established by
+Gate 1 in the current reference implementation**: the probe has no supported per-request external
+evidence source for that memory tier, so a DRAM hit is only inferred. Gate 1 needs evidence from outside
+the serving framework that the intended memory allocation served a given request in a controlled interval. A
 framework hit count, memory-capacity usage or host-wide memory bandwidth alone is not enough. On
 unified-memory hosts, a logical CPU cache is not necessarily separate physical memory
 ([unified-memory lessons](reference/UNIFIED-MEMORY-LESSONS.md)).
@@ -103,16 +108,19 @@ counters apply. It is **not hardware-verified**; every Gate 1 pass so far is sin
 
 ### REMOTE file/object attachment: an evidence adapter
 
-NFS over RDMA, object storage and network KV stores leave no block device on the GPU server, so the
-device-filtered counter sees nothing and Gate 1 reaches at most `UNPROVEN`. This path belongs with the
-disaggregated profile ([PROFILES, V2](PROFILES.md#v2-disaggregated-path-qualification)).
+NFS over RDMA, object storage and network KV stores do not expose the target storage as a local block
+device on the GPU server. The current block-device counter cannot establish their KV payload transfer,
+so it cannot by itself establish Gate 1. A remote attachment can still be evaluated as a component tier
+at one serving endpoint if suitable evidence is provided. Shared-cache or prefill/decode handoff
+validation requires additional correlation and path evidence
+([PROFILES, V2](PROFILES.md#v2-disaggregated-path-qualification)).
 
 - **Needed:** an evidence source that counts per-request bytes at the client, the connection or the
   store, with an identity that ties them to the request. NIC totals include other traffic and protocol
   overhead; logical KV bytes, encoded payload and wire bytes can differ and need their own expected values.
 - **Closes when:** an adapter turns such evidence into the normalized format, with synthetic tests for
-  complete, missing and partial transfers, and one controlled hardware run shows its limits. Attaching a
-  remote tier is not the same as validating a shared cache or a prefill/decode handoff; those stay separate.
+  complete, missing and partial transfers, and one controlled hardware run shows the attachment's limits.
+  Keep the result scoped to the tier and path actually measured.
 
 ## Keeping this page current
 
