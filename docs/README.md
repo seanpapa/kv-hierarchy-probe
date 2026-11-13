@@ -140,8 +140,9 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
   - Gate 2: request TTFT p50 0.18 s on retrieval versus 0.77 s on recompute, 10 samples each.
   - Gate 3: `ECONOMICAL`, 0.23 reuses to repay admission against an expected 1, counting all 10
     attempts: 5 served by the tier and 5 `store_unattributed` (no observed write during the store).
-  - Gate 4: beyond the upper tier's capacity the tier served 4 of 15 retrievals and 8 fell back or
-    missed: the tier is needed there but did not serve what overflowed.
+  - Gate 4: in working sets beyond the upper tier's capacity, the tier served 4 of 15 retrievals;
+    3 were classified as upper-tier hits, and 8 fell back or missed. The tier was needed there
+    but did not serve all the overflow.
   - Gate 5, at 2,048 tokens per request: every batch met its byte and correctness checks through
     concurrency 2; the batches above it did not and are not credited to the tier.
 
