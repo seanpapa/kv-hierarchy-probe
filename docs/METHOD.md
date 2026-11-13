@@ -443,8 +443,10 @@ the device in your working-set range is not justified by this gate**, however fa
 
 Each row also keeps `stores` and `retrievals`: one record per request with the entry index, the
 host-wide `nvidia-fs` write and read MiB observed during it, TTFT and class. They are raw evidence —
-the report reads only the counts — and they answer the question a `fallback` raises: did the entry's
-store write nothing, or was it written and then failed to load?
+the report reads only the counts — and they narrow the question a `fallback` raises: was there no
+observed write for the entry's store, or was write activity observed while retrieval was not
+established? The counters are host-wide, so they do not by themselves place the write on the target
+device.
 
 ### Gate 5 — envelope
 
