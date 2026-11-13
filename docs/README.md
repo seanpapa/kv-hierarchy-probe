@@ -134,7 +134,8 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
 - On 2026-10-08 all five gates were measured in one run of one declared configuration, on the
   host and model of the 2026-10-05 re-measurement: a native cuFile GDS arm with its recompute arm,
   4,096-token entries of 1 GiB, and a 1 GiB staging pool so that Gate 4 can classify hits. The
-  report under the current assessment (`0.6.2`) is `PASS` with performance claims allowed:
+  report under the current assessment ([`VERSIONING.md`](VERSIONING.md)) is `PASS` with performance
+  claims allowed:
   - Gate 1: 10/10 requests moved the expected bytes on the tier's own disk, per the per-device
     cgroup counter (`corroborated`).
   - Gate 2: request TTFT p50 0.18 s on retrieval versus 0.77 s on recompute, 10 samples each.
