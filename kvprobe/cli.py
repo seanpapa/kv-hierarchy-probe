@@ -4,6 +4,7 @@
 # Standard
 import argparse
 import json
+import os
 import sys
 import textwrap
 from collections.abc import Sequence
@@ -11,7 +12,7 @@ from pathlib import Path
 
 # Local
 from .configuration import ConfigurationError, fingerprint_configuration
-from .doctor import build_manifest, render_manifest
+from .doctor import build_manifest, find_gdscheck, render_manifest
 from .geometry import GeometryError, derive_geometry
 from .ingest import IngestError, ingest_files
 from .model_source import (
@@ -31,6 +32,19 @@ from .pool_sizing import (
 from .readings import compute_readings
 from .report import EvidenceError, assess_evidence, render_markdown, render_text
 from .serving_verification import VerificationError, render_verification, verify_serving
+from .tier_check import (
+    ARMS,
+    DEFAULT_CHUNK_TOKENS,
+    DEFAULT_CONTEXT_TOKENS,
+    DEFAULT_FILLERS,
+    NOT_READY,
+    LocalHost,
+    PoolSizes,
+    TierCheckRequest,
+    is_supported_platform,
+    render_tier_check,
+    run_tier_check,
+)
 
 _DEMO_EXPECTED = {
     "pass-all-attempts.json": "PASS",
@@ -181,6 +195,48 @@ def _geometry_summary(geometry: dict, output: Path | None) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _positive_int(value: str) -> int:
+    """Parse a command-line integer that must be at least one.
+
+    Args:
+        value: Argument text.
+
+    Returns:
+        The integer.
+
+    Raises:
+        argparse.ArgumentTypeError: If it is not an integer of at least one.
+    """
+    try:
+        number = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"not an integer: {value}") from exc
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1: {value}")
+    return number
+
+
+def _non_negative_int(value: str) -> int:
+    """Parse a command-line integer that must be zero or more.
+
+    Args:
+        value: Argument text.
+
+    Returns:
+        The integer.
+
+    Raises:
+        argparse.ArgumentTypeError: If it is not an integer of at least zero.
+    """
+    try:
+        number = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"not an integer: {value}") from exc
+    if number < 0:
+        raise argparse.ArgumentTypeError(f"must be zero or more: {value}")
+    return number
 
 
 def _write_output(content: str, output: Path | None) -> None:
@@ -375,6 +431,61 @@ def _doctor(args: argparse.Namespace) -> int:
     if args.json_output is not None:
         _write_output(json.dumps(manifest, indent=2, sort_keys=True), args.json_output)
     return 0
+
+
+def _tier_check(args: argparse.Namespace) -> int:
+    """Check that a local NVMe tier can support a Gate 1 run.
+
+    Args:
+        args: Parsed command arguments.
+
+    Returns:
+        Zero for ``READY`` and ``READY WITH WARNINGS``; one for ``NOT READY``
+        (a failure or a required check that could not be completed); two for
+        usage, platform or output errors.
+    """
+    if not is_supported_platform():
+        print(
+            "tier-check reads Linux /sys and /proc; nothing was checked on this host.",
+            file=sys.stderr,
+        )
+        return 2
+    gdscheck = args.gdscheck or os.environ.get("GDSCHECK", "") or find_gdscheck() or ""
+    if (args.cufile_buf_mib is None) != (args.mib_per_chunk is None):
+        print(
+            "tier-check: --cufile-buf-mib and --mib-per-chunk are given together",
+            file=sys.stderr,
+        )
+        return 2
+    pool = None
+    if args.cufile_buf_mib is not None:
+        pool = PoolSizes(
+            cufile_buf_mib=args.cufile_buf_mib,
+            mib_per_chunk=args.mib_per_chunk,
+            context_tokens=args.context_tokens,
+            fillers=args.fillers,
+            chunk_tokens=args.chunk_tokens,
+        )
+    request = TierCheckRequest(
+        tier_mount=args.tier_mount,
+        arm=args.arm,
+        tier_dir=args.tier_dir or "",
+        model_dir=args.model_dir or "",
+        gdscheck=gdscheck,
+        pool=pool,
+    )
+    document = run_tier_check(request, LocalHost())
+    try:
+        _emit_result(
+            render_tier_check(document),
+            json.dumps(document, indent=2, sort_keys=True),
+            args.output,
+            args.json,
+        )
+    except OSError as exc:
+        print(f"tier-check output error: {exc}", file=sys.stderr)
+        return 2
+    return 1 if document["overall"] == NOT_READY else 0
 
 
 def _report(args: argparse.Namespace) -> int:
@@ -1267,6 +1378,69 @@ def build_parser() -> argparse.ArgumentParser:
         "--json-output", type=Path, help="also write the manifest as JSON"
     )
     doctor_parser.set_defaults(handler=_doctor)
+
+    tier_parser = subparsers.add_parser(
+        "tier-check",
+        help="check, read-only, that a local NVMe tier can support a Gate 1 run",
+    )
+    tier_parser.add_argument(
+        "--tier-mount",
+        required=True,
+        help="host path of the tier filesystem (GDS_MOUNT in the runbook)",
+    )
+    tier_parser.add_argument(
+        "--arm",
+        choices=ARMS,
+        default="gds",
+        help="arm to check for; NIXL static GDS_MT is checked as gds (default: gds)",
+    )
+    tier_parser.add_argument(
+        "--tier-dir",
+        help="directory your launcher reuses between runs; checked to be empty",
+    )
+    tier_parser.add_argument(
+        "--model-dir", help="host model directory, compared with the tier disk"
+    )
+    tier_parser.add_argument(
+        "--gdscheck", help="gdscheck executable (default: $GDSCHECK, then a search)"
+    )
+    tier_parser.add_argument(
+        "--cufile-buf-mib",
+        type=_positive_int,
+        help="cuFile staging pool in MiB (PROBE_CUFILE_BUF_MIB); needs --mib-per-chunk",
+    )
+    tier_parser.add_argument(
+        "--mib-per-chunk",
+        type=_positive_int,
+        help="KV MiB per chunk of the served model (PROBE_MIB_PER_CHUNK)",
+    )
+    tier_parser.add_argument(
+        "--context-tokens",
+        type=_positive_int,
+        default=DEFAULT_CONTEXT_TOKENS,
+        help=f"measured context tokens (REP_CONTEXT; default {DEFAULT_CONTEXT_TOKENS})",
+    )
+    tier_parser.add_argument(
+        "--fillers",
+        type=_non_negative_int,
+        default=DEFAULT_FILLERS,
+        help=f"distinct filler contexts between measurements (FILLERS; default {DEFAULT_FILLERS})",
+    )
+    tier_parser.add_argument(
+        "--chunk-tokens",
+        type=_positive_int,
+        default=DEFAULT_CHUNK_TOKENS,
+        help=f"tokens per stored chunk (default {DEFAULT_CHUNK_TOKENS})",
+    )
+    tier_parser.add_argument(
+        "--output", type=Path, help="also save the result as JSON to this file"
+    )
+    tier_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print JSON on standard output instead of the summary (summary goes to stderr)",
+    )
+    tier_parser.set_defaults(handler=_tier_check)
 
     demo_parser = subparsers.add_parser(
         "demo", help="judge bundled evidence without a GPU"

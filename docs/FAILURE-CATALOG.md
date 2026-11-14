@@ -80,7 +80,8 @@ scheduling record, not a completion record. Ask where in the code the counter in
 heuristic to classify a possible memory hit. `g3_admission_cost.py` retains a zero-read reuse as a
 fallback/store-unattributed outcome, so it lowers realized saving rather than disappearing. These
 rules prevent such rows from supporting a disk-retrieval claim; they do not directly trace each
-request to a particular resident buffer.
+request to a particular resident buffer. Before the run, `kvprobe tier-check` (T11) fails a cuFile
+staging pool that holds the whole working set, and warns when it holds more than one entry.
 
 **What you see.** A stable, repeatable speedup that is *better than it should be* — in our case
 roughly 12× against recompute, with a framework retrieve rate around 612 GiB/s. This is a
@@ -117,7 +118,7 @@ observations as diagnostic evidence and repeat the arm after correcting the evic
 
 ## 3. Native and compat are indistinguishable by speed **[principle]**
 
-*Caught by:* `g2_context_sweep.sh setup` — its gate requires a real device write (files over 64 KiB, bytes on disk, an `nvidia-fs` write delta) before measuring. Blocking compat is still an **operator precondition**: no script edits `cufile.json`.
+*Caught by:* `kvprobe tier-check` (T8), which rejects enabled or forced compat settings before the run and withholds readiness when `gdscheck` fails or its settings are incomplete. This checks configuration, not a native transfer. Then `g2_context_sweep.sh setup` requires a real device write (files over 64 KiB, bytes on disk, an `nvidia-fs` write delta) before measuring. Blocking compat is still an **operator precondition**: no script edits `cufile.json`.
 
 **What you see.** Excellent throughput, so you conclude the accelerated path is active.
 
@@ -148,7 +149,7 @@ only works when it may silently degrade was never demonstrated.
 
 ## 4. ext4 mounted without an explicit `data=ordered` **[stack]**
 
-*Caught by:* **nothing in this repository.** It is an operator precondition — check `findmnt` before `setup`, per [`../scripts/README.md`](../scripts/README.md). Downstream it surfaces as §3's gate failing.
+*Caught by:* `kvprobe tier-check` (T7) before the run: it reads the tier's mount options and fails ext4 without `data=ordered`. Downstream it surfaces as §3's gate failing.
 
 **What you see.** `gdscheck` says `nvfs`, yet everything goes POSIX. With compat blocked:
 `GPUDirect Storage not supported on current file`.
@@ -172,7 +173,7 @@ became visible. With compat enabled you would never have seen it.
 
 ## 5. The same error inside a container has a different cause **[stack]**
 
-*Caught by:* `g2_context_sweep.sh setup`, which aborts when `GdsBackend` never appears in `backend-init.txt`. It tells you the backend is absent, not why — this entry is the why.
+*Caught by:* `kvprobe tier-check` (T10), which fails a host without `/run/udev` before the run; it cannot see whether your launcher mounts it. Then `g2_context_sweep.sh setup`, which aborts when `GdsBackend` never appears in `backend-init.txt`. It tells you the backend is absent, not why — this entry is the why.
 
 **What you see.** `cuFileHandleRegister failed (cuFile err=5008)` — identical string to §4, but
 the host works and only the container fails.
@@ -274,7 +275,7 @@ attribute per request is not a saturation point.
 
 ## 9. Measurement plumbing that quietly changes what you measure **[principle]**
 
-*Caught by:* partly. `g2_context_sweep.sh setup` copies the network mode from the recompute arm so the arms match. Cleanup, logging level, mount identity and counter enablement are **operator checks**.
+*Caught by:* partly. `g2_context_sweep.sh setup` copies the network mode from the recompute arm so the arms match. `kvprobe tier-check` covers counter enablement and debug logging (T9), mount identity (T1, T2) and, for a directory you name, cleanup (T12); network mode and cuFile `TRACE` remain **operator checks**.
 
 | What you did | What it does | How you find out |
 |---|---|---|
