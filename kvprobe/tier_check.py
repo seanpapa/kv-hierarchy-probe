@@ -734,7 +734,9 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
         attributes cannot be read, else ``PASS``. For a native multipath head
         the transport of every path is read, or of every controller in its
         subsystem when the kernel does not link the paths (before mainline
-        v6.15); multipath itself is T4's finding.
+        v6.15); multipath itself is T4's finding. Missing required information
+        takes precedence over remote-transport warnings; both findings are
+        retained in the result.
     """
     title = "Tier device is local PCIe NVMe"
     if not device.resolved:
@@ -810,18 +812,18 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
         heads.append(
             f"{disk} is a native multipath head with {len(sources)} {label}{plural} (T4)"
         )
+    if unknown:
+        return _skip("T3", title, "; ".join(other + unknown))
     if other:
         return CheckResult(
             "T3",
             title,
             WARN,
-            "; ".join(other + unknown),
+            "; ".join(other),
             "Gate 1 has passed on hardware only for a local NVMe tier; another device class is "
             "unverified, including NVMe-oF.",
             f"Read results on this device as unverified ({_SCOPE_TABLE}).",
         )
-    if unknown:
-        return _skip("T3", title, "; ".join(unknown))
     note = f"; {'; '.join(heads)}" if heads else ""
     return CheckResult(
         "T3", title, PASS, f"{', '.join(disks)}: NVMe, transport=pcie{note}"

@@ -23,7 +23,8 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   transport of each of its paths checked (of each controller in its subsystem on kernels that do
   not link the paths), while a namespace without a head passes even though `nvme_core`
   `multipath` defaults to `Y`. The runbook stops its preflight block on a nonzero
-  exit.
+  exit. An unreadable required transport blocks readiness even if another path is known to
+  be remote; the result retains both the remote finding and the missing information.
 
 ### Changed
 

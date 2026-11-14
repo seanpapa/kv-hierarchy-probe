@@ -385,6 +385,27 @@ class DeviceClassTests(unittest.TestCase):
         self.assertEqual(_check(document, "T4")["status"], WARN)
         self.assertEqual(document["overall"], READY_WITH_WARNINGS)
 
+    def test_unreadable_path_blocks_readiness_despite_a_remote_path(self) -> None:
+        """A known remote path cannot hide another path's missing transport."""
+        for transport in ("tcp", "rdma"):
+            with self.subTest(transport=transport):
+                host = self._with_multipath_head(
+                    {"nvme1c1n1": "nvme1", "nvme1c4n1": "nvme4"}
+                )
+                host.files["/sys/class/nvme/nvme1/transport"] = transport + "\n"
+                document = run_tier_check(_request(arm="posix"), host)
+                t3 = _check(document, "T3")
+                self.assertEqual(t3["status"], SKIP)
+                self.assertTrue(t3["required_for_ready"])
+                self.assertEqual(document["overall"], NOT_READY)
+                self.assertIn(
+                    f"path nvme1c1n1 transport={transport}", t3["finding"]
+                )
+                self.assertIn(
+                    "path nvme1c4n1: transport is unreadable or unresolved",
+                    t3["finding"],
+                )
+
     def test_remote_nvme_transports_warn_even_with_a_local_looking_name(self) -> None:
         """NVMe/TCP and NVMe/RDMA are outside the local PCIe baseline."""
         for transport in ("tcp", "rdma", "fc", "loop"):
@@ -442,6 +463,29 @@ class DeviceClassTests(unittest.TestCase):
         t3 = _check(run_tier_check(_request(arm="posix"), host), "T3")
         self.assertEqual(t3["status"], WARN)
         self.assertIn("subsystem controller nvme4 transport=rdma", t3["finding"])
+
+    def test_unreadable_controller_blocks_readiness_despite_a_remote_controller(
+        self,
+    ) -> None:
+        """Subsystem fallback also preserves missing-evidence precedence."""
+        for transport in ("tcp", "rdma"):
+            with self.subTest(transport=transport):
+                host = self._with_head_before_path_links(
+                    {"nvme1": transport, "nvme4": ""}
+                )
+                document = run_tier_check(_request(arm="posix"), host)
+                t3 = _check(document, "T3")
+                self.assertEqual(t3["status"], SKIP)
+                self.assertTrue(t3["required_for_ready"])
+                self.assertEqual(document["overall"], NOT_READY)
+                self.assertIn(
+                    f"subsystem controller nvme1 transport={transport}",
+                    t3["finding"],
+                )
+                self.assertIn(
+                    "subsystem controller nvme4: transport is unreadable or unresolved",
+                    t3["finding"],
+                )
 
     def test_an_unreadable_subsystem_controller_withholds_readiness(self) -> None:
         """A controller whose transport cannot be read is not assumed local."""
