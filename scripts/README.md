@@ -100,7 +100,8 @@ EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight
 
 The subshell stops the block if a command fails, without closing your interactive shell. If it
 stops, resolve the reported condition and rerun step 2 before starting step 3. T3 checks the
-controller transport: NVMe/TCP and NVMe/RDMA are outside this local PCIe baseline. T8 checks
+controller transport: NVMe/TCP and NVMe/RDMA are outside this local PCIe baseline, so they warn;
+the run proceeds, and its results are outside the verified scope. T8 checks
 reported compat settings, including forced compat, rather than proving a native transfer; that
 still requires the controlled run's evidence.
 

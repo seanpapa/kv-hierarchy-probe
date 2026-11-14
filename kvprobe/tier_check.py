@@ -1232,7 +1232,9 @@ def render_tier_check(document: dict[str, object]) -> str:
 
     Returns:
         Text with one line per check, *Why* and *Fix* lines under each
-        ``WARN``, ``FAIL`` and required ``SKIP``, and the overall line.
+        ``WARN``, ``FAIL`` and required ``SKIP``, and the overall line. A
+        ``READY WITH WARNINGS`` result adds a line saying the run may proceed
+        and the warnings belong with its results.
 
     Raises:
         ValueError: When ``document`` does not have the result shape.
@@ -1267,6 +1269,13 @@ def render_tier_check(document: dict[str, object]) -> str:
     lines += [
         "",
         f"Overall: {document['overall']}{unchecked}",
+    ]
+    if document["overall"] == READY_WITH_WARNINGS:
+        lines.append(
+            "The run may proceed. Each warning names a configuration this repository has not "
+            "verified; keep the warnings with the run's results."
+        )
+    lines += [
         "READY means the required checks passed; optional or inapplicable checks may be skipped. "
         "It is not Gate 1 evidence; only the run's per-request counters are.",
     ]

@@ -749,6 +749,7 @@ class CommandTests(unittest.TestCase):
         code, out, _ = self._run([], FakeHost())
         self.assertEqual(code, 0)
         self.assertIn("Overall: READY (2 not checked)", out)
+        self.assertNotIn("The run may proceed.", out)
 
     def test_a_failing_check_exits_one(self) -> None:
         """Any FAIL is exit 1."""
@@ -764,6 +765,8 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Overall: READY WITH WARNINGS", out)
         self.assertIn("WARN", out)
+        self.assertIn("The run may proceed.", out)
+        self.assertIn("keep the warnings with the run's results", out)
 
     def test_required_skip_exits_one_even_without_a_fail(self) -> None:
         """Unreadable required information is a non-ready result."""
