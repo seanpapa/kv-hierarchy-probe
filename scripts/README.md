@@ -77,10 +77,14 @@ export OUT=$HOME/kvprobe-$RUN
 mkdir -p "$OUT"
 ```
 
-**2. Preflight** (seconds). `doctor` lists what the host can observe; `preflight` prints the mount,
-`gdscheck`, the GPUs and the image id. Stop here if `use_compat_mode` is not `false`.
+**2. Preflight** (seconds). `tier-check` checks, read-only, the host conditions that decide whether
+this run can establish Gate 1: the device the counter reads, a dedicated disk, multipath, cgroup v2,
+the filesystem, compat mode, the `nvidia-fs` counters, the container prerequisites and the staging
+pool. **Stop here unless it says `READY`** (exit 0); each `WARN` or `FAIL` names its fix. `doctor`
+lists what the host can observe; `preflight` prints the mount, `gdscheck`, the GPUs and the image id.
 
 ```bash
+python3 -m kvprobe tier-check --tier-mount "$GDS_MOUNT" --model-dir "$MODEL_HOST_DIR" --cufile-buf-mib "$PROBE_CUFILE_BUF_MIB" --mib-per-chunk "$PROBE_MIB_PER_CHUNK" --context-tokens "$REP_CONTEXT" --fillers "$FILLERS"
 python3 -m kvprobe doctor
 sudo -v
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight
@@ -421,6 +425,15 @@ from performance evidence.
 7. **Logging off for performance runs.** cuFile `TRACE` and `nvidia_fs` debug depress throughput;
    keep diagnostic runs separate (`cat /sys/module/nvidia_fs/parameters/dbg_enabled` → 0), and
    confirm counters are on (`rw_stats_enabled` → 1) or attribution silently reports nothing.
+   **A reboot turns the counters off again.** `rw_stats_enabled` is a module parameter, and on the
+   reference host it was back at 0 after a reboot although the last run had counted reads. No
+   launcher turns it on. Enable it before each session:
+
+   ```bash
+   echo 1 | sudo tee /sys/module/nvidia_fs/parameters/rw_stats_enabled
+   ```
+
+   `tier-check` reports it as a `FAIL` (T9) when it is off.
 
 > These preconditions are the stack-specific way to satisfy the method-level requirements in
 > [`../docs/CHECKLIST.md`](../docs/CHECKLIST.md). That document states *what must be true*; this

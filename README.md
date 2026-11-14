@@ -122,7 +122,9 @@ contract and are not benchmark results. See [Evidence and report format](docs/EV
 The scripts implement the method for one stack: **vLLM + LMCache**, with buffered POSIX, native
 cuFile GDS, and NIXL storage paths. The [minimal runbook](scripts/README.md#minimal-runbook--all-five-gates-one-configuration)
 runs all five gates in about 30 minutes on a prepared Linux host: two NVIDIA GPUs, a whole NVMe disk
-with GDS (`use_compat_mode : false`), and a vLLM + LMCache image ([how to get one](scripts/README.md#getting-an-image)). [Gate 1](docs/GATE1.md) explains
+with GDS (`use_compat_mode : false`), and a vLLM + LMCache image ([how to get one](scripts/README.md#getting-an-image)).
+Its step 2, `python3 -m kvprobe tier-check --tier-mount <tier mount>`, checks read-only in seconds
+whether the host can support the run at all, before the 30 minutes start. [Gate 1](docs/GATE1.md) explains
 what that measurement can claim. Other serving stacks should produce the documented
 [external-run shape](docs/EXTERNAL-RUNS.md) and normalize it with `kvprobe ingest`.
 

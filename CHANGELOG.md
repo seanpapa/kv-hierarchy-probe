@@ -4,6 +4,26 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
+## Unreleased
+
+### Added
+
+- **`tier-check`**, a read-only preflight for a local NVMe tier. Before a run it checks the host
+  conditions that decide whether the run can establish Gate 1: the device the per-device counter
+  reads and its scope, a dedicated disk on its own mount, NVMe without multipath or device stacking,
+  cgroup v2 `io`, a filesystem cuFile accepts, native rather than compat mode, the `nvidia-fs`
+  counters, the container prerequisites, the staging pool against the working set, and leftovers in
+  a directory you name. It changes nothing on the host, and `READY` is not Gate 1 evidence. Its JSON
+  output is a new data contract ([VERSIONING](docs/VERSIONING.md)). The minimal runbook runs it as
+  step 2.
+
+### Changed
+
+- The runbook's host preconditions say that a reboot turns the `nvidia-fs` counters off again, and
+  give the command that turns them on.
+- [FAILURE-CATALOG](docs/FAILURE-CATALOG.md) §§2–5 and §9 name the `tier-check` item that catches
+  each failure before the run.
+
 ## 0.1.0 — 2026-11-13 (first public release)
 
 ### What it is
