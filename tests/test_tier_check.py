@@ -457,6 +457,21 @@ class DeviceClassTests(unittest.TestCase):
         self.assertEqual(_check(document, "T4")["status"], WARN)
         self.assertEqual(document["overall"], READY_WITH_WARNINGS)
 
+    def test_an_empty_multipath_group_falls_back_to_the_subsystem(self) -> None:
+        """A backported multipath group without path links is not taken as no paths.
+
+        Some distribution kernels before mainline v6.15 show an empty
+        ``multipath`` directory; the subsystem's controllers still decide T3.
+        """
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme3": "pcie"})
+        host.dirs["/sys/block/nvme1n1/multipath"] = []
+        document = run_tier_check(_request(), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], PASS)
+        self.assertIn("with 2 subsystem controllers", t3["finding"])
+        self.assertEqual(_check(document, "T4")["status"], WARN)
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
     def test_a_fabric_controller_in_the_subsystem_warns(self) -> None:
         """Any non-PCIe controller in the subsystem is reported, conservatively."""
         host = self._with_head_before_path_links({"nvme1": "pcie", "nvme4": "rdma"})
