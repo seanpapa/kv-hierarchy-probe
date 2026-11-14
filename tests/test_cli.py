@@ -152,7 +152,7 @@ GPU1    SYS      X      32-63
     def test_doctor_finds_gdscheck_outside_path(self) -> None:
         """A toolkit-installed gdscheck must not be reported as absent."""
         toolkit_path = "/usr/local/cuda-13.3/gds/tools/gdscheck"
-        with patch("kvprobe.doctor._find_gdscheck", return_value=toolkit_path):
+        with patch("kvprobe.doctor.find_gdscheck", return_value=toolkit_path):
             manifest = build_manifest()
 
         capability = manifest["capabilities"]["gds"]

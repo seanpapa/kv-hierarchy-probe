@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-def _find_gdscheck() -> str | None:
+def find_gdscheck() -> str | None:
     """Find ``gdscheck`` on PATH or in common CUDA toolkit locations.
 
     Returns:
@@ -283,7 +283,7 @@ def build_manifest() -> dict[str, Any]:
         "detail": docker_path or "docker executable not found",
     }
 
-    gdscheck_path = _find_gdscheck()
+    gdscheck_path = find_gdscheck()
     gds = {
         "status": "not_tested" if gdscheck_path else "not_detected",
         "detail": (

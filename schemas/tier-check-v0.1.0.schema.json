@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kv-hierarchy-probe:tier-check:0.1.0",
+  "title": "kv-hierarchy-probe tier-check result v0.1.0",
+  "description": "Read-only host conditions for a local NVMe Gate 1 run. A READY result is not Gate 1 evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tier_check_version", "tier_mount", "arm", "device", "checks", "counts", "overall"],
+  "properties": {
+    "tier_check_version": {"const": "0.1.0"},
+    "tier_mount": {"type": "string", "minLength": 1},
+    "arm": {"enum": ["gds", "posix"]},
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "scope", "disk"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^([0-9]+:[0-9]+)?$"},
+        "scope": {"enum": ["whole_disk", "widened_to_parent_disk", "unresolved"]},
+        "disk": {"type": "string"}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "status", "finding", "why", "fix"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^T([1-9]|1[0-2])$"},
+          "title": {"type": "string", "minLength": 1},
+          "status": {"enum": ["PASS", "WARN", "FAIL", "SKIP"]},
+          "finding": {"type": "string", "minLength": 1},
+          "why": {"type": "string"},
+          "fix": {"type": "string"}
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["PASS", "WARN", "FAIL", "SKIP"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "WARN": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "SKIP": {"type": "integer", "minimum": 0}
+      }
+    },
+    "overall": {"enum": ["READY", "READY WITH WARNINGS", "NOT READY"]}
+  }
+}
