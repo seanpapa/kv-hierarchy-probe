@@ -10,15 +10,19 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 
 - **`tier-check`**, a read-only preflight for a local NVMe tier. Before a run it checks the host
   conditions that decide whether the run can establish Gate 1: the device the per-device counter
-  reads and its scope, a dedicated disk on its own mount, NVMe without multipath or device stacking,
-  cgroup v2 `io`, a filesystem cuFile accepts, native rather than compat mode, the `nvidia-fs`
-  counters, the container prerequisites, the staging pool against the working set, and leftovers in
-  a directory you name. It changes nothing on the host, and `READY` is not Gate 1 evidence. Its JSON
-  output is a new data contract ([VERSIONING](docs/VERSIONING.md)). The minimal runbook runs it as
-  step 2. `READY` and `READY WITH WARNINGS` return exit 0; failures and unreadable required
-  conditions are `NOT READY` and return exit 1. Each JSON check records whether it is required for readiness. NVMe-oF is reported
-  as outside the local PCIe baseline, and the compat check requires successful `gdscheck` output
-  with both compat settings disabled. The runbook stops its preflight block on a nonzero exit.
+  reads and its scope, a dedicated disk on its own mount, NVMe without multipath or device
+  stacking, cgroup v2 `io`, a filesystem cuFile accepts, native rather than compat mode, the
+  `nvidia-fs` counters, the container prerequisites, the staging pool against the working set, and
+  leftovers in a directory you name. It changes nothing on the host, and `READY` is not Gate 1
+  evidence. Its JSON output is a new data contract ([VERSIONING](docs/VERSIONING.md)). The minimal
+  runbook runs it as step 2. `READY` and `READY WITH WARNINGS` return exit 0; failures and
+  unreadable required conditions are `NOT READY` and return exit 1. Each JSON check records
+  whether it is required for readiness. NVMe-oF is reported as outside the local PCIe baseline,
+  and the compat check requires successful `gdscheck` output with both compat settings disabled.
+  Multipath is judged from the tier's own device: a native multipath head warns and has the
+  transport of each of its paths checked, while a namespace without a head passes even though
+  `nvme_core` `multipath` defaults to `Y`. The runbook stops its preflight block on a nonzero
+  exit.
 
 ### Changed
 

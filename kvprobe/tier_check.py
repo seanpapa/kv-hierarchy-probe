@@ -665,6 +665,62 @@ def check_dedicated_disk(
     )
 
 
+def _nvme_ancestor(host: Host, sysfs_path: str, pattern: str) -> str:
+    """Return the nearest ancestor of a resolved sysfs path matching a name.
+
+    Args:
+        host: Host view.
+        sysfs_path: Path to resolve, for example ``/sys/block/nvme0n1``.
+        pattern: Regular expression the ancestor's name must match in full.
+
+    Returns:
+        The ancestor's name, or an empty string when none matches.
+    """
+    for parent in PurePosixPath(host.realpath(sysfs_path)).parents:
+        if re.fullmatch(pattern, parent.name):
+            return parent.name
+    return ""
+
+
+def _multipath_subsystem(host: Host, disk: str) -> str:
+    """Return the NVMe subsystem when a disk is a native multipath head.
+
+    With native multipath active for a namespace, the kernel registers its
+    head disk under the subsystem device (``nvme-subsysN``) rather than under
+    a controller, and links each path disk from ``/sys/block/<disk>/multipath``.
+    A namespace on a single-controller subsystem stays a plain disk under its
+    controller even when ``nvme_core`` ``multipath`` is ``Y``.
+
+    Args:
+        host: Host view.
+        disk: Block device name, for example ``nvme0n1``.
+
+    Returns:
+        The subsystem name, or an empty string for a plain namespace or a
+        disk whose ancestry is unresolved.
+    """
+    return _nvme_ancestor(host, f"/sys/block/{disk}", r"nvme-subsys[0-9]+")
+
+
+def _controller_transport(host: Host, sysfs_path: str) -> str:
+    """Return the transport of the NVMe controller above a sysfs path.
+
+    Args:
+        host: Host view.
+        sysfs_path: A namespace or path disk to resolve.
+
+    Returns:
+        The transport (``pcie``, ``tcp``, ``rdma`` …), or an empty string when
+        no controller is found or its transport is unreadable.
+    """
+    # A namespace name alone does not distinguish local PCIe from NVMe-oF, and
+    # under multipath it does not name the controller; resolve the ancestry.
+    controller = _nvme_ancestor(host, sysfs_path, r"nvme[0-9]+")
+    if not controller:
+        return ""
+    return (host.read_text(f"/sys/class/nvme/{controller}/transport") or "").strip()
+
+
 def check_device_class(host: Host, device: TierDevice) -> CheckResult:
     """T3: the tier is on local PCIe NVMe, non-rotational media.
 
@@ -674,7 +730,8 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
 
     Returns:
         ``WARN`` for another device class or transport, ``SKIP`` when required
-        attributes cannot be read, else ``PASS``.
+        attributes cannot be read, else ``PASS``. For a native multipath head
+        the transport of every path is read; multipath itself is T4's finding.
     """
     title = "Tier device is local PCIe NVMe"
     if not device.resolved:
@@ -682,6 +739,7 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
     disks = sorted(physical_disks(host, device.disk))
     other: list[str] = []
     unknown: list[str] = []
+    heads: list[str] = []
     for disk in disks:
         rotational = (
             host.read_text(f"/sys/block/{disk}/queue/rotational") or ""
@@ -694,29 +752,43 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
             unknown.append(f"{disk}: queue/rotational is unreadable or unrecognized")
         if not disk.startswith("nvme"):
             continue
-        # A namespace name alone does not distinguish local PCIe from NVMe-oF.
-        # Find its controller in the resolved sysfs ancestry, without guessing
-        # a controller number from the namespace name under multipath.
-        ancestors = PurePosixPath(host.realpath(f"/sys/block/{disk}")).parents
-        controller = next(
-            (
-                parent.name
-                for parent in ancestors
-                if re.fullmatch(r"nvme[0-9]+", parent.name)
-            ),
-            "",
-        )
-        transport = (
-            host.read_text(f"/sys/class/nvme/{controller}/transport")
-            if controller
-            else None
-        )
-        if transport is None or not transport.strip():
-            unknown.append(f"{disk}: controller transport is unreadable or unresolved")
-        elif transport.strip() != "pcie":
-            other.append(
-                f"{disk} transport={transport.strip()} is outside the local PCIe baseline"
+        subsystem = _multipath_subsystem(host, disk)
+        if not subsystem:
+            transport = _controller_transport(host, f"/sys/block/{disk}")
+            if not transport:
+                unknown.append(
+                    f"{disk}: controller transport is unreadable or unresolved"
+                )
+            elif transport != "pcie":
+                other.append(
+                    f"{disk} transport={transport} is outside the local PCIe baseline"
+                )
+            continue
+        # A native multipath head: every path must be local PCIe.
+        paths = sorted(host.list_dir(f"/sys/block/{disk}/multipath") or [])
+        if not paths:
+            unknown.append(
+                f"{disk} is a native multipath head ({subsystem}; see T4) whose paths "
+                f"could not be listed from /sys/block/{disk}/multipath"
             )
+            continue
+        for path in paths:
+            transport = _controller_transport(
+                host, f"/sys/block/{disk}/multipath/{path}"
+            )
+            if not transport:
+                unknown.append(
+                    f"{disk} path {path}: controller transport is unreadable or unresolved"
+                )
+            elif transport != "pcie":
+                other.append(
+                    f"{disk} path {path} transport={transport} is outside the local PCIe "
+                    "baseline"
+                )
+        plural = "" if len(paths) == 1 else "s"
+        heads.append(
+            f"{disk} is a native multipath head with {len(paths)} path{plural} (T4)"
+        )
     if other:
         return CheckResult(
             "T3",
@@ -729,46 +801,83 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
         )
     if unknown:
         return _skip("T3", title, "; ".join(unknown))
-    return CheckResult("T3", title, PASS, f"{', '.join(disks)}: NVMe, transport=pcie")
+    note = f"; {'; '.join(heads)}" if heads else ""
+    return CheckResult(
+        "T3", title, PASS, f"{', '.join(disks)}: NVMe, transport=pcie{note}"
+    )
 
 
 def check_native_multipath(host: Host, device: TierDevice) -> CheckResult:
-    """T4: native NVMe multipath is off.
+    """T4: native NVMe multipath is not active for the tier.
+
+    The ``nvme_core`` ``multipath`` parameter defaults to ``Y``, but the kernel
+    creates a multipath head only for a namespace whose subsystem has more
+    than one controller (or with ``multipath_always_on``). The check reads the
+    tier's own device: a head is a warning, a plain namespace passes whatever
+    the parameter says.
 
     Args:
         host: Host view.
         device: Resolution of the tier mount.
 
     Returns:
-        ``PASS`` for ``N``, ``WARN`` for ``Y``, ``SKIP`` when it does not apply
-        or cannot be read.
+        ``WARN`` when the tier is a multipath head, ``PASS`` for a plain
+        namespace, ``SKIP`` when it does not apply or cannot be determined.
     """
-    title = "Native NVMe multipath is off"
+    title = "Native NVMe multipath is not active for the tier"
     if not device.resolved:
         return _skip("T4", title, "the tier device is unresolved (T1)")
-    if not any(disk.startswith("nvme") for disk in physical_disks(host, device.disk)):
+    disks = sorted(
+        disk for disk in physical_disks(host, device.disk) if disk.startswith("nvme")
+    )
+    if not disks:
         return _skip(
             "T4",
             title,
             "the tier is not on an NVMe namespace",
             required_for_ready=False,
         )
-    value = host.read_text("/sys/module/nvme_core/parameters/multipath")
-    if value is None:
-        return _skip(
-            "T4", title, "/sys/module/nvme_core/parameters/multipath is not readable"
+    heads = [
+        f"{disk} under {subsystem}"
+        for disk in disks
+        if (subsystem := _multipath_subsystem(host, disk))
+    ]
+    if heads:
+        return CheckResult(
+            "T4",
+            title,
+            WARN,
+            f"native multipath head: {', '.join(heads)}",
+            "Gate 1's byte attribution was verified on a plain namespace; on a multipath head, "
+            "which device number io.stat records is unverified.",
+            f"Use a single-controller namespace or boot with nvme_core.multipath=N for the "
+            f"reference configuration, or read Gate 1 on this host as unverified "
+            f"({_SCOPE_TABLE}).",
         )
-    if value.strip() in ("N", "0"):
+    value = (
+        host.read_text("/sys/module/nvme_core/parameters/multipath") or ""
+    ).strip()
+    unresolved = [
+        disk
+        for disk in disks
+        if not _nvme_ancestor(host, f"/sys/block/{disk}", r"nvme[0-9]+")
+    ]
+    if unresolved and value not in ("N", "0"):
+        return _skip(
+            "T4",
+            title,
+            f"{', '.join(unresolved)}: neither a controller nor a subsystem found in its "
+            f"sysfs ancestry, so a multipath head cannot be ruled out "
+            f"(nvme_core multipath={value or 'unreadable'})",
+        )
+    if value in ("N", "0"):
         return CheckResult("T4", title, PASS, "nvme_core multipath=N")
     return CheckResult(
         "T4",
         title,
-        WARN,
-        f"nvme_core multipath={value.strip()}",
-        "Gate 1's byte attribution was verified with native multipath off; with it on, which "
-        "device number io.stat records is unverified.",
-        f"Boot with nvme_core.multipath=N for the reference configuration, or read Gate 1 on "
-        f"this host as unverified ({_SCOPE_TABLE}).",
+        PASS,
+        f"{', '.join(disks)}: plain namespace under its controller, no multipath head "
+        f"(nvme_core multipath={value or 'unreadable'})",
     )
 
 
