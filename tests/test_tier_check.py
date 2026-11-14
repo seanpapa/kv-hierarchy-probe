@@ -332,13 +332,79 @@ class DeviceClassTests(unittest.TestCase):
         self.assertIn("sdb is not an NVMe namespace", _check(document, "T3")["finding"])
         self.assertEqual(_check(document, "T4")["status"], SKIP)
 
-    def test_native_multipath_on_warns(self) -> None:
-        """Attribution with multipath on is unverified, not a measured failure."""
+    def _with_multipath_head(self, paths: dict[str, str]) -> FakeHost:
+        """Return the reference host with the tier on a native multipath head.
+
+        Args:
+            paths: Path disk name to the controller it sits under.
+        """
+        host = FakeHost()
+        head = "/sys/devices/virtual/nvme-subsystem/nvme-subsys1/nvme1n1"
+        host.files["/sys/module/nvme_core/parameters/multipath"] = "Y\n"
+        host.links["/sys/dev/block/259:7"] = head
+        host.links["/sys/block/nvme1n1"] = head
+        host.dirs["/sys/block/nvme1n1/multipath"] = sorted(paths)
+        for name, controller in paths.items():
+            host.links[f"/sys/block/nvme1n1/multipath/{name}"] = (
+                f"/sys/devices/pci0/nvme/{controller}/{name}"
+            )
+        return host
+
+    def test_parameter_on_without_a_head_passes(self) -> None:
+        """multipath=Y is the kernel default; a single-controller namespace stays plain."""
         host = FakeHost()
         host.files["/sys/module/nvme_core/parameters/multipath"] = "Y\n"
-        t4 = _check(run_tier_check(_request(), host), "T4")
-        self.assertEqual(t4["status"], WARN)
+        document = run_tier_check(_request(), host)
+        t4 = _check(document, "T4")
+        self.assertEqual(t4["status"], PASS)
+        self.assertIn("no multipath head", t4["finding"])
         self.assertIn("multipath=Y", t4["finding"])
+        self.assertEqual(document["overall"], READY)
+
+    def test_a_multipath_head_on_local_pcie_paths_warns_only_in_t4(self) -> None:
+        """Every path is local PCIe (T3 passes); multipath itself is T4's warning."""
+        host = self._with_multipath_head({"nvme1c1n1": "nvme1", "nvme1c3n1": "nvme3"})
+        host.files["/sys/class/nvme/nvme3/transport"] = "pcie\n"
+        document = run_tier_check(_request(), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], PASS)
+        self.assertIn("native multipath head with 2 paths", t3["finding"])
+        t4 = _check(document, "T4")
+        self.assertEqual(t4["status"], WARN)
+        self.assertIn("nvme1n1 under nvme-subsys1", t4["finding"])
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
+    def test_a_multipath_head_with_a_fabric_path_warns_in_t3(self) -> None:
+        """NVMe-oF behind a multipath head is still reported as outside the baseline."""
+        host = self._with_multipath_head({"nvme1c1n1": "nvme1", "nvme1c4n1": "nvme4"})
+        host.files["/sys/class/nvme/nvme4/transport"] = "tcp\n"
+        document = run_tier_check(_request(arm="posix"), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], WARN)
+        self.assertIn("path nvme1c4n1 transport=tcp", t3["finding"])
+        self.assertEqual(_check(document, "T4")["status"], WARN)
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
+    def test_unreadable_path_blocks_readiness_despite_a_remote_path(self) -> None:
+        """A known remote path cannot hide another path's missing transport."""
+        for transport in ("tcp", "rdma"):
+            with self.subTest(transport=transport):
+                host = self._with_multipath_head(
+                    {"nvme1c1n1": "nvme1", "nvme1c4n1": "nvme4"}
+                )
+                host.files["/sys/class/nvme/nvme1/transport"] = transport + "\n"
+                document = run_tier_check(_request(arm="posix"), host)
+                t3 = _check(document, "T3")
+                self.assertEqual(t3["status"], SKIP)
+                self.assertTrue(t3["required_for_ready"])
+                self.assertEqual(document["overall"], NOT_READY)
+                self.assertIn(
+                    f"path nvme1c1n1 transport={transport}", t3["finding"]
+                )
+                self.assertIn(
+                    "path nvme1c4n1: transport is unreadable or unresolved",
+                    t3["finding"],
+                )
 
     def test_remote_nvme_transports_warn_even_with_a_local_looking_name(self) -> None:
         """NVMe/TCP and NVMe/RDMA are outside the local PCIe baseline."""
@@ -364,15 +430,112 @@ class DeviceClassTests(unittest.TestCase):
         self.assertEqual(_check(document, "T3")["status"], SKIP)
         self.assertEqual(document["overall"], NOT_READY)
 
-    def test_unresolved_controller_ancestry_withholds_readiness(self) -> None:
-        """Multipath namespaces cannot guess a controller from their name."""
-        host = FakeHost()
-        host.links["/sys/block/nvme1n1"] = (
-            "/sys/devices/virtual/nvme-subsystem/nvme-subsys1/nvme1n1"
-        )
+    def _with_head_before_path_links(self, transports: dict[str, str]) -> FakeHost:
+        """Return a multipath head on a kernel without the head's path links.
+
+        Before mainline v6.15 only the subsystem links its controllers.
+
+        Args:
+            transports: Controller name to the transport it reports.
+        """
+        host = self._with_multipath_head({})
+        del host.dirs["/sys/block/nvme1n1/multipath"]
+        subsystem = "/sys/class/nvme-subsystem/nvme-subsys1"
+        host.dirs[subsystem] = sorted(transports) + ["nvme1n1", "subsysnqn"]
+        for name, transport in transports.items():
+            if transport:
+                host.files[f"{subsystem}/{name}/transport"] = transport + "\n"
+        return host
+
+    def test_a_head_without_path_links_reads_its_subsystem_controllers(self) -> None:
+        """A 6.8-era kernel: the subsystem's controllers stand in for the paths."""
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme3": "pcie"})
         document = run_tier_check(_request(), host)
-        self.assertEqual(_check(document, "T3")["status"], SKIP)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], PASS)
+        self.assertIn("with 2 subsystem controllers", t3["finding"])
+        self.assertEqual(_check(document, "T4")["status"], WARN)
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
+    def test_an_empty_multipath_group_falls_back_to_the_subsystem(self) -> None:
+        """A backported multipath group without path links is not taken as no paths.
+
+        Some distribution kernels before mainline v6.15 show an empty
+        ``multipath`` directory; the subsystem's controllers still decide T3.
+        """
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme3": "pcie"})
+        host.dirs["/sys/block/nvme1n1/multipath"] = []
+        document = run_tier_check(_request(), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], PASS)
+        self.assertIn("with 2 subsystem controllers", t3["finding"])
+        self.assertEqual(_check(document, "T4")["status"], WARN)
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
+    def test_a_fabric_controller_in_the_subsystem_warns(self) -> None:
+        """Any non-PCIe controller in the subsystem is reported, conservatively."""
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme4": "rdma"})
+        t3 = _check(run_tier_check(_request(arm="posix"), host), "T3")
+        self.assertEqual(t3["status"], WARN)
+        self.assertIn("subsystem controller nvme4 transport=rdma", t3["finding"])
+
+    def test_unreadable_controller_blocks_readiness_despite_a_remote_controller(
+        self,
+    ) -> None:
+        """Subsystem fallback also preserves missing-evidence precedence."""
+        for transport in ("tcp", "rdma"):
+            with self.subTest(transport=transport):
+                host = self._with_head_before_path_links(
+                    {"nvme1": transport, "nvme4": ""}
+                )
+                document = run_tier_check(_request(arm="posix"), host)
+                t3 = _check(document, "T3")
+                self.assertEqual(t3["status"], SKIP)
+                self.assertTrue(t3["required_for_ready"])
+                self.assertEqual(document["overall"], NOT_READY)
+                self.assertIn(
+                    f"subsystem controller nvme1 transport={transport}",
+                    t3["finding"],
+                )
+                self.assertIn(
+                    "subsystem controller nvme4: transport is unreadable or unresolved",
+                    t3["finding"],
+                )
+
+    def test_an_unreadable_subsystem_controller_withholds_readiness(self) -> None:
+        """A controller whose transport cannot be read is not assumed local."""
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme3": ""})
+        document = run_tier_check(_request(), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], SKIP)
+        self.assertIn("subsystem controller nvme3", t3["finding"])
         self.assertEqual(document["overall"], NOT_READY)
+
+    def test_a_multipath_head_without_listable_paths_names_multipath(self) -> None:
+        """A head whose paths cannot be read withholds readiness and says why."""
+        host = self._with_multipath_head({})
+        del host.dirs["/sys/block/nvme1n1/multipath"]
+        document = run_tier_check(_request(), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], SKIP)
+        self.assertIn("native multipath head (nvme-subsys1; see T4)", t3["finding"])
+        self.assertIn("subsystem controllers could not be listed", t3["finding"])
+        self.assertEqual(_check(document, "T4")["status"], WARN)
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_unresolved_ancestry_withholds_readiness_unless_multipath_is_off(
+        self,
+    ) -> None:
+        """Without a controller or subsystem in the ancestry, a head is not ruled out."""
+        for value, status in (("Y\n", SKIP), ("N\n", PASS)):
+            with self.subTest(multipath=value.strip()):
+                host = FakeHost()
+                host.files["/sys/module/nvme_core/parameters/multipath"] = value
+                host.links["/sys/block/nvme1n1"] = "/sys/devices/virtual/block/nvme1n1"
+                document = run_tier_check(_request(), host)
+                self.assertEqual(_check(document, "T3")["status"], SKIP)
+                self.assertEqual(_check(document, "T4")["status"], status)
+                self.assertEqual(document["overall"], NOT_READY)
 
     def test_unreadable_rotational_flag_withholds_readiness(self) -> None:
         """A required media attribute is not guessed."""
@@ -382,13 +545,15 @@ class DeviceClassTests(unittest.TestCase):
         self.assertEqual(_check(document, "T3")["status"], SKIP)
         self.assertEqual(document["overall"], NOT_READY)
 
-    def test_unreadable_multipath_parameter_is_skipped(self) -> None:
-        """A built-in nvme_core without the parameter is not guessed."""
+    def test_unreadable_parameter_passes_for_a_plain_namespace(self) -> None:
+        """The tier's own sysfs placement decides; the parameter is only reported."""
         host = FakeHost()
         del host.files["/sys/module/nvme_core/parameters/multipath"]
         document = run_tier_check(_request(), host)
-        self.assertEqual(_check(document, "T4")["status"], SKIP)
-        self.assertEqual(document["overall"], NOT_READY)
+        t4 = _check(document, "T4")
+        self.assertEqual(t4["status"], PASS)
+        self.assertIn("multipath=unreadable", t4["finding"])
+        self.assertEqual(document["overall"], READY)
 
     def test_a_device_mapper_tier_warns_but_its_nvme_disk_counts_for_t3(self) -> None:
         """LVM over NVMe is stacked (T5) on an NVMe device (T3)."""
@@ -705,11 +870,11 @@ class RenderTests(unittest.TestCase):
     def test_render_shows_why_and_fix_only_for_warn_and_fail(self) -> None:
         """A failing check carries its reason and the documented fix."""
         host = FakeHost()
-        host.files["/sys/module/nvme_core/parameters/multipath"] = "Y\n"
+        host.files["/sys/module/nvidia_fs/parameters/dbg_enabled"] = "1\n"
         host.files["/sys/fs/cgroup/cgroup.controllers"] = "cpu\n"
         text = render_tier_check(run_tier_check(_request(), host))
         self.assertIn("FAIL  T6", text)
-        self.assertIn("WARN  T4", text)
+        self.assertIn("WARN  T9", text)
         self.assertEqual(text.count("Why:"), 2)
         self.assertIn("Overall: NOT READY (2 not checked)", text)
         self.assertIn("It is not Gate 1 evidence", text)
@@ -760,7 +925,7 @@ class CommandTests(unittest.TestCase):
     def test_warnings_exit_zero_and_are_printed(self) -> None:
         """A warning names an unverified configuration; the run may proceed."""
         host = FakeHost()
-        host.files["/sys/module/nvme_core/parameters/multipath"] = "Y\n"
+        host.files["/sys/module/nvidia_fs/parameters/dbg_enabled"] = "1\n"
         code, out, _ = self._run([], host)
         self.assertEqual(code, 0)
         self.assertIn("Overall: READY WITH WARNINGS", out)
