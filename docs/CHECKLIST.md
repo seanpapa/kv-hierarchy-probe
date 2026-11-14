@@ -40,7 +40,8 @@ run: the device the counter reads, counters enabled, compat mode, the staging po
 working set, and leftovers in a directory you name ([runbook step 2](../scripts/README.md#minimal-runbook--all-five-gates-one-configuration)).
 It does not check cold reads, fillers or arm plumbing, and `READY` is not Gate 1 evidence.
 Unreadable required checks block `READY`; unrequested optional checks and inapplicable checks do
-not. Exit 0 means `READY`, while warnings or an incomplete required check return exit 1.
+not. Warnings do not block: `READY` and `READY WITH WARNINGS` return exit 0, while a failure or an
+incomplete required check returns exit 1.
 
 ---
 

@@ -80,8 +80,10 @@ mkdir -p "$OUT"
 **2. Preflight** (seconds). `tier-check` checks, read-only, the host conditions that decide whether
 this run can establish Gate 1: the device the counter reads, a dedicated disk, multipath, cgroup v2,
 the filesystem, compat mode, the `nvidia-fs` counters, the container prerequisites and the staging
-pool. **Continue only with `READY`** (exit 0). Warnings, failures and required checks that could not
-be completed return exit 1; their output names the next check or fix. Optional inputs that were
+pool. **Continue with `READY` or `READY WITH WARNINGS`** (exit 0). A warning names a configuration
+this repository has not verified, such as multipath, device stacking or NVMe-oF; the run may
+proceed, and the warning belongs with its results. Failures and required checks that could not be
+completed are `NOT READY` and return exit 1; their output names the next check or fix. Optional inputs that were
 not supplied and checks that do not apply to the selected arm may be skipped without blocking
 `READY`. `doctor` lists what the host can observe; `preflight` prints the mount, `gdscheck`, the
 GPUs and the image id.

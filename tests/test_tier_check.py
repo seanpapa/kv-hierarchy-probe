@@ -756,13 +756,14 @@ class CommandTests(unittest.TestCase):
         del host.dirs["/run/udev"]
         self.assertEqual(self._run([], host)[0], 1)
 
-    def test_warnings_exit_one(self) -> None:
-        """A warning cannot silently advance an automated runbook."""
+    def test_warnings_exit_zero_and_are_printed(self) -> None:
+        """A warning names an unverified configuration; the run may proceed."""
         host = FakeHost()
         host.files["/sys/module/nvme_core/parameters/multipath"] = "Y\n"
         code, out, _ = self._run([], host)
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 0)
         self.assertIn("Overall: READY WITH WARNINGS", out)
+        self.assertIn("WARN", out)
 
     def test_required_skip_exits_one_even_without_a_fail(self) -> None:
         """Unreadable required information is a non-ready result."""

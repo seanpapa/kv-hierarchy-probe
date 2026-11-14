@@ -37,7 +37,7 @@ from .tier_check import (
     DEFAULT_CHUNK_TOKENS,
     DEFAULT_CONTEXT_TOKENS,
     DEFAULT_FILLERS,
-    READY,
+    NOT_READY,
     LocalHost,
     PoolSizes,
     TierCheckRequest,
@@ -440,8 +440,9 @@ def _tier_check(args: argparse.Namespace) -> int:
         args: Parsed command arguments.
 
     Returns:
-        Zero only for ``READY``; one for warnings, failures or required checks
-        that could not be completed; two for usage, platform or output errors.
+        Zero for ``READY`` and ``READY WITH WARNINGS``; one for ``NOT READY``
+        (a failure or a required check that could not be completed); two for
+        usage, platform or output errors.
     """
     if not is_supported_platform():
         print(
@@ -484,7 +485,7 @@ def _tier_check(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"tier-check output error: {exc}", file=sys.stderr)
         return 2
-    return 0 if document["overall"] == READY else 1
+    return 1 if document["overall"] == NOT_READY else 0
 
 
 def _report(args: argparse.Namespace) -> int:

@@ -15,8 +15,8 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   counters, the container prerequisites, the staging pool against the working set, and leftovers in
   a directory you name. It changes nothing on the host, and `READY` is not Gate 1 evidence. Its JSON
   output is a new data contract ([VERSIONING](docs/VERSIONING.md)). The minimal runbook runs it as
-  step 2. It returns exit 0 only for `READY`; warnings, failures and unreadable required conditions
-  return exit 1. Each JSON check records whether it is required for readiness. NVMe-oF is reported
+  step 2. `READY` and `READY WITH WARNINGS` return exit 0; failures and unreadable required
+  conditions are `NOT READY` and return exit 1. Each JSON check records whether it is required for readiness. NVMe-oF is reported
   as outside the local PCIe baseline, and the compat check requires successful `gdscheck` output
   with both compat settings disabled. The runbook stops its preflight block on a nonzero exit.
 
