@@ -687,7 +687,8 @@ def _multipath_subsystem(host: Host, disk: str) -> str:
 
     With native multipath active for a namespace, the kernel registers its
     head disk under the subsystem device (``nvme-subsysN``) rather than under
-    a controller, and links each path disk from ``/sys/block/<disk>/multipath``.
+    a controller. Mainline v6.15 and later also link each path disk from
+    ``/sys/block/<disk>/multipath``.
     A namespace on a single-controller subsystem stays a plain disk under its
     controller even when ``nvme_core`` ``multipath`` is ``Y``.
 
@@ -731,7 +732,9 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
     Returns:
         ``WARN`` for another device class or transport, ``SKIP`` when required
         attributes cannot be read, else ``PASS``. For a native multipath head
-        the transport of every path is read; multipath itself is T4's finding.
+        the transport of every path is read, or of every controller in its
+        subsystem when the kernel does not link the paths (before mainline
+        v6.15); multipath itself is T4's finding.
     """
     title = "Tier device is local PCIe NVMe"
     if not device.resolved:
@@ -764,30 +767,48 @@ def check_device_class(host: Host, device: TierDevice) -> CheckResult:
                     f"{disk} transport={transport} is outside the local PCIe baseline"
                 )
             continue
-        # A native multipath head: every path must be local PCIe.
+        # A native multipath head: every path must be local PCIe. Mainline
+        # v6.15 and later link the head's path disks from its multipath group.
+        # Earlier kernels do not, but every release read (v5.15, v6.8) links
+        # each controller into its subsystem, a superset of the head's paths.
         paths = sorted(host.list_dir(f"/sys/block/{disk}/multipath") or [])
-        if not paths:
+        if paths:
+            label = "path"
+            sources = {
+                path: f"/sys/block/{disk}/multipath/{path}" for path in paths
+            }
+        else:
+            label = "subsystem controller"
+            controllers = host.list_dir(f"/sys/class/nvme-subsystem/{subsystem}") or []
+            sources = {
+                name: f"/sys/class/nvme-subsystem/{subsystem}/{name}/transport"
+                for name in sorted(controllers)
+                if re.fullmatch(r"nvme[0-9]+", name)
+            }
+        if not sources:
             unknown.append(
                 f"{disk} is a native multipath head ({subsystem}; see T4) whose paths "
-                f"could not be listed from /sys/block/{disk}/multipath"
+                f"and subsystem controllers could not be listed"
             )
             continue
-        for path in paths:
-            transport = _controller_transport(
-                host, f"/sys/block/{disk}/multipath/{path}"
+        for name, source in sources.items():
+            transport = (
+                _controller_transport(host, source)
+                if label == "path"
+                else (host.read_text(source) or "").strip()
             )
             if not transport:
                 unknown.append(
-                    f"{disk} path {path}: controller transport is unreadable or unresolved"
+                    f"{disk} {label} {name}: transport is unreadable or unresolved"
                 )
             elif transport != "pcie":
                 other.append(
-                    f"{disk} path {path} transport={transport} is outside the local PCIe "
-                    "baseline"
+                    f"{disk} {label} {name} transport={transport} is outside the local "
+                    "PCIe baseline"
                 )
-        plural = "" if len(paths) == 1 else "s"
+        plural = "" if len(sources) == 1 else "s"
         heads.append(
-            f"{disk} is a native multipath head with {len(paths)} path{plural} (T4)"
+            f"{disk} is a native multipath head with {len(sources)} {label}{plural} (T4)"
         )
     if other:
         return CheckResult(
@@ -812,7 +833,8 @@ def check_native_multipath(host: Host, device: TierDevice) -> CheckResult:
 
     The ``nvme_core`` ``multipath`` parameter defaults to ``Y``, but the kernel
     creates a multipath head only for a namespace whose subsystem has more
-    than one controller (or with ``multipath_always_on``). The check reads the
+    than one controller (or, from mainline v6.16, with
+    ``multipath_always_on``). The check reads the
     tier's own device: a head is a warning, a plain namespace passes whatever
     the parameter says.
 

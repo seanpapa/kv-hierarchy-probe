@@ -20,8 +20,9 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   whether it is required for readiness. NVMe-oF is reported as outside the local PCIe baseline,
   and the compat check requires successful `gdscheck` output with both compat settings disabled.
   Multipath is judged from the tier's own device: a native multipath head warns and has the
-  transport of each of its paths checked, while a namespace without a head passes even though
-  `nvme_core` `multipath` defaults to `Y`. The runbook stops its preflight block on a nonzero
+  transport of each of its paths checked (of each controller in its subsystem on kernels that do
+  not link the paths), while a namespace without a head passes even though `nvme_core`
+  `multipath` defaults to `Y`. The runbook stops its preflight block on a nonzero
   exit.
 
 ### Changed

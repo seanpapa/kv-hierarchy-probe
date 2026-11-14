@@ -409,6 +409,49 @@ class DeviceClassTests(unittest.TestCase):
         self.assertEqual(_check(document, "T3")["status"], SKIP)
         self.assertEqual(document["overall"], NOT_READY)
 
+    def _with_head_before_path_links(self, transports: dict[str, str]) -> FakeHost:
+        """Return a multipath head on a kernel without the head's path links.
+
+        Before mainline v6.15 only the subsystem links its controllers.
+
+        Args:
+            transports: Controller name to the transport it reports.
+        """
+        host = self._with_multipath_head({})
+        del host.dirs["/sys/block/nvme1n1/multipath"]
+        subsystem = "/sys/class/nvme-subsystem/nvme-subsys1"
+        host.dirs[subsystem] = sorted(transports) + ["nvme1n1", "subsysnqn"]
+        for name, transport in transports.items():
+            if transport:
+                host.files[f"{subsystem}/{name}/transport"] = transport + "\n"
+        return host
+
+    def test_a_head_without_path_links_reads_its_subsystem_controllers(self) -> None:
+        """A 6.8-era kernel: the subsystem's controllers stand in for the paths."""
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme3": "pcie"})
+        document = run_tier_check(_request(), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], PASS)
+        self.assertIn("with 2 subsystem controllers", t3["finding"])
+        self.assertEqual(_check(document, "T4")["status"], WARN)
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
+    def test_a_fabric_controller_in_the_subsystem_warns(self) -> None:
+        """Any non-PCIe controller in the subsystem is reported, conservatively."""
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme4": "rdma"})
+        t3 = _check(run_tier_check(_request(arm="posix"), host), "T3")
+        self.assertEqual(t3["status"], WARN)
+        self.assertIn("subsystem controller nvme4 transport=rdma", t3["finding"])
+
+    def test_an_unreadable_subsystem_controller_withholds_readiness(self) -> None:
+        """A controller whose transport cannot be read is not assumed local."""
+        host = self._with_head_before_path_links({"nvme1": "pcie", "nvme3": ""})
+        document = run_tier_check(_request(), host)
+        t3 = _check(document, "T3")
+        self.assertEqual(t3["status"], SKIP)
+        self.assertIn("subsystem controller nvme3", t3["finding"])
+        self.assertEqual(document["overall"], NOT_READY)
+
     def test_a_multipath_head_without_listable_paths_names_multipath(self) -> None:
         """A head whose paths cannot be read withholds readiness and says why."""
         host = self._with_multipath_head({})
@@ -417,6 +460,7 @@ class DeviceClassTests(unittest.TestCase):
         t3 = _check(document, "T3")
         self.assertEqual(t3["status"], SKIP)
         self.assertIn("native multipath head (nvme-subsys1; see T4)", t3["finding"])
+        self.assertIn("subsystem controllers could not be listed", t3["finding"])
         self.assertEqual(_check(document, "T4")["status"], WARN)
         self.assertEqual(document["overall"], NOT_READY)
 
