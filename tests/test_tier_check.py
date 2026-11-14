@@ -10,10 +10,13 @@ its own whole NVMe disk with the root filesystem on a partition of another.
 import importlib.util
 import io
 import json
+import os
+import subprocess
+import tempfile
 import unittest
-from types import SimpleNamespace
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 # First Party
@@ -62,6 +65,8 @@ class FakeHost:
             "/sys/devices/pci0/nvme/nvme0/nvme0n1/dev": "259:0\n",
             "/sys/block/nvme1n1/queue/rotational": "0\n",
             "/sys/block/nvme0n1/queue/rotational": "0\n",
+            "/sys/class/nvme/nvme1/transport": "pcie\n",
+            "/sys/class/nvme/nvme0/transport": "pcie\n",
             "/sys/module/nvme_core/parameters/multipath": "N\n",
             "/sys/fs/cgroup/cgroup.controllers": "cpuset cpu io memory pids\n",
             "/proc/driver/nvidia-fs/stats": "GDS Version: 1.0\n",
@@ -84,6 +89,8 @@ class FakeHost:
             "/sys/dev/block/259:7": "/sys/devices/pci0/nvme/nvme1/nvme1n1",
             "/sys/dev/block/259:2": "/sys/devices/pci0/nvme/nvme0/nvme0n1/nvme0n1p2",
             "/sys/dev/block/259:1": "/sys/devices/pci0/nvme/nvme0/nvme0n1/nvme0n1p1",
+            "/sys/block/nvme1n1": "/sys/devices/pci0/nvme/nvme1/nvme1n1",
+            "/sys/block/nvme0n1": "/sys/devices/pci0/nvme/nvme0/nvme0n1",
         }
         self.devices: dict[str, tuple[int, int]] = {
             "/mnt/tier": (259, 7),
@@ -94,9 +101,13 @@ class FakeHost:
         self.commands: dict[tuple[str, ...], tuple[int, str]] = {
             (GDSCHECK, "-p"): (
                 0,
-                " NVMe               : Supported\n properties.use_compat_mode : false\n",
+                " NVMe               : Supported\n properties.use_compat_mode : false\n"
+                " properties.force_compat_mode : false\n",
             ),
-            ("docker", "info", "--format", "{{.DockerRootDir}}"): (0, "/var/lib/docker\n"),
+            ("docker", "info", "--format", "{{.DockerRootDir}}"): (
+                0,
+                "/var/lib/docker\n",
+            ),
         }
         self.calls: list[tuple[str, ...]] = []
 
@@ -132,7 +143,11 @@ class FakeHost:
 
 def _request(**changes: object) -> TierCheckRequest:
     """Return the reference request with fields replaced."""
-    fields: dict[str, object] = {"tier_mount": "/mnt/tier", "arm": "gds", "gdscheck": GDSCHECK}
+    fields: dict[str, object] = {
+        "tier_mount": "/mnt/tier",
+        "arm": "gds",
+        "gdscheck": GDSCHECK,
+    }
     fields.update(changes)
     return TierCheckRequest(**fields)  # type: ignore[arg-type]
 
@@ -149,7 +164,9 @@ def _make_partition_tier(host: FakeHost) -> None:
     host.devices["/mnt/tier"] = (259, 3)
     host.files["/sys/dev/block/259:3/partition"] = "3"
     host.dirs["/sys/dev/block/259:3"] = ["partition"]
-    host.links["/sys/dev/block/259:3"] = "/sys/devices/pci0/nvme/nvme0/nvme0n1/nvme0n1p3"
+    host.links["/sys/dev/block/259:3"] = (
+        "/sys/devices/pci0/nvme/nvme0/nvme0n1/nvme0n1p3"
+    )
     host.files["/proc/self/mountinfo"] = MOUNTINFO.replace(
         "40 22 259:7 / /mnt/tier rw,relatime shared:20 - xfs /dev/nvme1n1",
         "40 22 259:3 / /mnt/tier rw,relatime shared:20 - xfs /dev/nvme0n1p3",
@@ -165,17 +182,22 @@ class ReferenceHostTests(unittest.TestCase):
         self.assertEqual(document["overall"], READY)
         self.assertEqual(document["counts"], {PASS: 10, WARN: 0, FAIL: 0, SKIP: 2})
         self.assertEqual(
-            document["device"], {"key": "259:7", "scope": "whole_disk", "disk": "nvme1n1"}
+            document["device"],
+            {"key": "259:7", "scope": "whole_disk", "disk": "nvme1n1"},
         )
         self.assertEqual(_check(document, "T11")["status"], SKIP)
         self.assertEqual(_check(document, "T12")["status"], SKIP)
+        self.assertFalse(_check(document, "T11")["required_for_ready"])
+        self.assertFalse(_check(document, "T12")["required_for_ready"])
 
     def test_checks_run_in_order_and_say_nothing_extra_on_pass(self) -> None:
         """PASS carries no Why or Fix; the order is T1 to T12."""
         document = run_tier_check(_request(), FakeHost())
         checks = document["checks"]
         assert isinstance(checks, list)
-        self.assertEqual([check["id"] for check in checks], [f"T{n}" for n in range(1, 13)])
+        self.assertEqual(
+            [check["id"] for check in checks], [f"T{n}" for n in range(1, 13)]
+        )
         for check in checks:
             if check["status"] == PASS:
                 self.assertEqual((check["why"], check["fix"]), ("", ""))
@@ -186,7 +208,9 @@ class ReferenceHostTests(unittest.TestCase):
         run_tier_check(_request(), host)
         self.assertEqual(
             sorted(host.calls),
-            sorted([(GDSCHECK, "-p"), ("docker", "info", "--format", "{{.DockerRootDir}}")]),
+            sorted(
+                [(GDSCHECK, "-p"), ("docker", "info", "--format", "{{.DockerRootDir}}")]
+            ),
         )
 
     def test_unknown_arm_is_refused(self) -> None:
@@ -244,20 +268,40 @@ class DeviceTests(unittest.TestCase):
         host = FakeHost()
         host.devices["/mnt/tier"] = (259, 2)
         host.files["/proc/self/mountinfo"] = MOUNTINFO.replace(
-            "40 22 259:7 / /mnt/tier rw,relatime shared:20 - xfs /dev/nvme1n1 rw,attr2,inode64\n", ""
+            "40 22 259:7 / /mnt/tier rw,relatime shared:20 - xfs /dev/nvme1n1 rw,attr2,inode64\n",
+            "",
         )
         t2 = _check(run_tier_check(_request(), host), "T2")
         self.assertEqual(t2["status"], FAIL)
         self.assertIn("root filesystem", t2["finding"])
         self.assertIn("§9", t2["fix"])
 
-    def test_docker_root_not_compared_is_said_and_does_not_fail(self) -> None:
-        """Without docker info the comparison is partial and says so."""
+    def test_unreadable_docker_root_withholds_readiness(self) -> None:
+        """A partial disk comparison cannot establish a dedicated disk."""
         host = FakeHost()
         del host.commands[("docker", "info", "--format", "{{.DockerRootDir}}")]
-        t2 = _check(run_tier_check(_request(), host), "T2")
-        self.assertEqual(t2["status"], PASS)
-        self.assertIn("not compared: Docker root (docker info unavailable)", t2["finding"])
+        document = run_tier_check(_request(), host)
+        t2 = _check(document, "T2")
+        self.assertEqual(t2["status"], SKIP)
+        self.assertTrue(t2["required_for_ready"])
+        self.assertEqual(document["overall"], NOT_READY)
+        self.assertIn(
+            "not compared: Docker root (docker info unavailable)", t2["finding"]
+        )
+
+    def test_requested_missing_model_directory_withholds_readiness(self) -> None:
+        """A supplied model directory must be compared, not silently ignored."""
+        document = run_tier_check(_request(model_dir="/missing-model"), FakeHost())
+        self.assertEqual(_check(document, "T2")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_unreadable_mount_table_withholds_readiness(self) -> None:
+        """Without the mount table, a dedicated mount cannot be established."""
+        host = FakeHost()
+        del host.files["/proc/self/mountinfo"]
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T2")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
 
     def test_a_stacked_root_on_the_tier_disk_is_found_through_the_mapper(self) -> None:
         """LVM on the tier disk still shares it, even under another device name."""
@@ -296,11 +340,55 @@ class DeviceClassTests(unittest.TestCase):
         self.assertEqual(t4["status"], WARN)
         self.assertIn("multipath=Y", t4["finding"])
 
+    def test_remote_nvme_transports_warn_even_with_a_local_looking_name(self) -> None:
+        """NVMe/TCP and NVMe/RDMA are outside the local PCIe baseline."""
+        for transport in ("tcp", "rdma", "fc", "loop"):
+            with self.subTest(transport=transport):
+                host = FakeHost()
+                host.links["/sys/block/nvme1n1"] = (
+                    "/sys/devices/virtual/nvme-fabrics/ctl/nvme1/nvme1n1"
+                )
+                host.files["/sys/class/nvme/nvme1/transport"] = transport + "\n"
+                document = run_tier_check(_request(arm="posix"), host)
+                self.assertEqual(_check(document, "T3")["status"], WARN)
+                self.assertIn(
+                    f"transport={transport}", _check(document, "T3")["finding"]
+                )
+                self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
+    def test_missing_transport_withholds_readiness(self) -> None:
+        """The nvme prefix alone does not prove a local connection."""
+        host = FakeHost()
+        del host.files["/sys/class/nvme/nvme1/transport"]
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T3")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_unresolved_controller_ancestry_withholds_readiness(self) -> None:
+        """Multipath namespaces cannot guess a controller from their name."""
+        host = FakeHost()
+        host.links["/sys/block/nvme1n1"] = (
+            "/sys/devices/virtual/nvme-subsystem/nvme-subsys1/nvme1n1"
+        )
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T3")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_unreadable_rotational_flag_withholds_readiness(self) -> None:
+        """A required media attribute is not guessed."""
+        host = FakeHost()
+        del host.files["/sys/block/nvme1n1/queue/rotational"]
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T3")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
+
     def test_unreadable_multipath_parameter_is_skipped(self) -> None:
         """A built-in nvme_core without the parameter is not guessed."""
         host = FakeHost()
         del host.files["/sys/module/nvme_core/parameters/multipath"]
-        self.assertEqual(_check(run_tier_check(_request(), host), "T4")["status"], SKIP)
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T4")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
 
     def test_a_device_mapper_tier_warns_but_its_nvme_disk_counts_for_t3(self) -> None:
         """LVM over NVMe is stacked (T5) on an NVMe device (T3)."""
@@ -311,7 +399,9 @@ class DeviceClassTests(unittest.TestCase):
         host.dirs["/sys/block/dm-1/slaves"] = ["nvme1n1p1"]
         host.dirs["/sys/block/dm-1/holders"] = []
         host.files["/sys/class/block/nvme1n1p1/partition"] = "1"
-        host.links["/sys/class/block/nvme1n1p1"] = "/sys/devices/pci0/nvme/nvme1/nvme1n1/nvme1n1p1"
+        host.links["/sys/class/block/nvme1n1p1"] = (
+            "/sys/devices/pci0/nvme/nvme1/nvme1n1/nvme1n1p1"
+        )
         document = run_tier_check(_request(), host)
         self.assertEqual(_check(document, "T3")["status"], PASS)
         t5 = _check(document, "T5")
@@ -325,6 +415,16 @@ class DeviceClassTests(unittest.TestCase):
         t5 = _check(run_tier_check(_request(), host), "T5")
         self.assertEqual(t5["status"], WARN)
         self.assertIn("held by dm-3", t5["finding"])
+
+    def test_unreadable_stacking_inventory_withholds_readiness(self) -> None:
+        """Unavailable slaves/holders is different from an empty list."""
+        for name in ("slaves", "holders"):
+            with self.subTest(name=name):
+                host = FakeHost()
+                del host.dirs[f"/sys/block/nvme1n1/{name}"]
+                document = run_tier_check(_request(), host)
+                self.assertEqual(_check(document, "T5")["status"], SKIP)
+                self.assertEqual(document["overall"], NOT_READY)
 
 
 class CounterTests(unittest.TestCase):
@@ -351,7 +451,9 @@ class CounterTests(unittest.TestCase):
         host.dirs["/dev"] = ["null"]
         t9 = _check(run_tier_check(_request(), host), "T9")
         self.assertEqual(t9["status"], FAIL)
-        self.assertIn("/proc/driver/nvidia-fs/stats and no /dev/nvidia-fs*", t9["finding"])
+        self.assertIn(
+            "/proc/driver/nvidia-fs/stats and no /dev/nvidia-fs*", t9["finding"]
+        )
 
     def test_counters_off_fail(self) -> None:
         """rw_stats_enabled=0 makes native runs look like compat (catalog §9)."""
@@ -361,7 +463,9 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(t9["status"], FAIL)
         self.assertIn("§9", t9["fix"])
         self.assertIn("returns to its default after a reboot", t9["fix"])
-        self.assertIn("tee /sys/module/nvidia_fs/parameters/rw_stats_enabled", t9["fix"])
+        self.assertIn(
+            "tee /sys/module/nvidia_fs/parameters/rw_stats_enabled", t9["fix"]
+        )
 
     def test_debug_logging_warns(self) -> None:
         """Debug on depresses throughput but does not invalidate attribution."""
@@ -375,7 +479,18 @@ class CounterTests(unittest.TestCase):
         """A parameter this user cannot read is not reported as on or off."""
         host = FakeHost()
         del host.files["/sys/module/nvidia_fs/parameters/rw_stats_enabled"]
-        self.assertEqual(_check(run_tier_check(_request(), host), "T9")["status"], SKIP)
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T9")["status"], SKIP)
+        self.assertTrue(_check(document, "T9")["required_for_ready"])
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_unreadable_debug_parameter_withholds_readiness(self) -> None:
+        """Known counter enablement does not prove debug logging is off."""
+        host = FakeHost()
+        del host.files["/sys/module/nvidia_fs/parameters/dbg_enabled"]
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T9")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
 
 
 class CuFileTests(unittest.TestCase):
@@ -425,7 +540,44 @@ class CuFileTests(unittest.TestCase):
         host.commands[(GDSCHECK, "-p")] = (0, "GDS release version: 1.0\n")
         t8 = _check(run_tier_check(_request(), host), "T8")
         self.assertEqual(t8["status"], SKIP)
-        self.assertIn("no use_compat_mode line", t8["finding"])
+        self.assertIn("no recognized use_compat_mode", t8["finding"])
+
+    def test_gdscheck_failure_does_not_trust_settings_in_partial_output(self) -> None:
+        """Even complete-looking output is unverified when the tool failed."""
+        for code in (1, 127):
+            with self.subTest(code=code):
+                host = FakeHost()
+                _, output = host.commands[(GDSCHECK, "-p")]
+                host.commands[(GDSCHECK, "-p")] = (code, output)
+                document = run_tier_check(_request(), host)
+                self.assertEqual(_check(document, "T8")["status"], SKIP)
+                self.assertEqual(document["overall"], NOT_READY)
+
+    def test_forced_compat_fails_when_regular_compat_is_disabled(self) -> None:
+        """The independent force flag must not be hidden by the regular flag."""
+        host = FakeHost()
+        host.commands[(GDSCHECK, "-p")] = (
+            0,
+            "NVMe : Supported\nproperties.use_compat_mode : false\n"
+            "properties.force_compat_mode : true\n",
+        )
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T8")["status"], FAIL)
+        self.assertIn("force_compat_mode", _check(document, "T8")["finding"])
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_both_compat_settings_are_required_for_readiness(self) -> None:
+        """An absent or unrecognized force flag is not assumed false."""
+        for force_line in ("", "properties.force_compat_mode : unknown\n"):
+            with self.subTest(force_line=force_line):
+                host = FakeHost()
+                host.commands[(GDSCHECK, "-p")] = (
+                    0,
+                    "properties.use_compat_mode : false\n" + force_line,
+                )
+                document = run_tier_check(_request(), host)
+                self.assertEqual(_check(document, "T8")["status"], SKIP)
+                self.assertEqual(document["overall"], NOT_READY)
 
     def test_missing_udev_fails(self) -> None:
         """The container's 5008 has this cause (catalog §5)."""
@@ -440,10 +592,14 @@ class CuFileTests(unittest.TestCase):
         host = FakeHost()
         del host.files["/proc/driver/nvidia-fs/stats"]
         document = run_tier_check(
-            _request(arm="posix", pool=PoolSizes(cufile_buf_mib=8192, mib_per_chunk=64)), host
+            _request(
+                arm="posix", pool=PoolSizes(cufile_buf_mib=8192, mib_per_chunk=64)
+            ),
+            host,
         )
         for check_id in ("T7", "T8", "T9", "T10", "T11"):
             self.assertEqual(_check(document, check_id)["status"], SKIP, check_id)
+            self.assertFalse(_check(document, check_id)["required_for_ready"])
         self.assertEqual(document["overall"], READY)
         self.assertNotIn((GDSCHECK, "-p"), host.calls)
 
@@ -506,15 +662,20 @@ class TierDirectoryTests(unittest.TestCase):
 
     def test_a_directory_not_created_yet_passes(self) -> None:
         """The launcher will create it."""
-        t12 = _check(run_tier_check(_request(tier_dir="/mnt/tier/new"), FakeHost()), "T12")
+        t12 = _check(
+            run_tier_check(_request(tier_dir="/mnt/tier/new"), FakeHost()), "T12"
+        )
         self.assertEqual(t12["status"], PASS)
 
     def test_an_unlistable_directory_is_skipped(self) -> None:
         """Root-owned contents are not guessed."""
         host = FakeHost()
         host.files["/mnt/tier/cache"] = ""
-        t12 = _check(run_tier_check(_request(tier_dir="/mnt/tier/cache"), host), "T12")
+        document = run_tier_check(_request(tier_dir="/mnt/tier/cache"), host)
+        t12 = _check(document, "T12")
         self.assertEqual(t12["status"], SKIP)
+        self.assertTrue(t12["required_for_ready"])
+        self.assertEqual(document["overall"], NOT_READY)
 
 
 class MountTableTests(unittest.TestCase):
@@ -553,23 +714,38 @@ class RenderTests(unittest.TestCase):
         self.assertIn("Overall: NOT READY (2 not checked)", text)
         self.assertIn("It is not Gate 1 evidence", text)
 
+    def test_render_explains_a_required_skip(self) -> None:
+        """An unreadable counter must offer a next action rather than READY."""
+        host = FakeHost()
+        del host.files["/sys/module/nvidia_fs/parameters/rw_stats_enabled"]
+        text = render_tier_check(run_tier_check(_request(), host))
+        self.assertIn("SKIP  T9", text)
+        self.assertIn("required host condition has not been established", text)
+        self.assertEqual(text.count("Why:"), 1)
+        self.assertIn("Overall: NOT READY", text)
+
 
 class CommandTests(unittest.TestCase):
-    """Exit codes: 0 no FAIL, 1 a FAIL, 2 usage or not Linux."""
+    """Exit codes: 0 READY, 1 not READY, 2 usage or not Linux."""
 
-    def _run(self, arguments: list[str], host: FakeHost, system: str = "Linux") -> tuple[int, str, str]:
+    def _run(
+        self, arguments: list[str], host: FakeHost, system: str = "Linux"
+    ) -> tuple[int, str, str]:
         """Run the command against a fake host."""
         out, err = io.StringIO(), io.StringIO()
-        with patch("kvprobe.tier_check.platform.system", return_value=system), patch.object(
-            cli, "LocalHost", return_value=host
-        ), patch.object(cli, "find_gdscheck", return_value=GDSCHECK), patch.dict(
-            "os.environ", {}, clear=True
-        ), redirect_stdout(out), redirect_stderr(err):
+        with (
+            patch("kvprobe.tier_check.platform.system", return_value=system),
+            patch.object(cli, "LocalHost", return_value=host),
+            patch.object(cli, "find_gdscheck", return_value=GDSCHECK),
+            patch.dict("os.environ", {}, clear=True),
+            redirect_stdout(out),
+            redirect_stderr(err),
+        ):
             code = cli.main(["tier-check", "--tier-mount", "/mnt/tier", *arguments])
         return code, out.getvalue(), err.getvalue()
 
     def test_ready_exits_zero(self) -> None:
-        """No FAIL is exit 0."""
+        """A prepared host with only unrequested checks is exit 0."""
         code, out, _ = self._run([], FakeHost())
         self.assertEqual(code, 0)
         self.assertIn("Overall: READY (2 not checked)", out)
@@ -579,6 +755,22 @@ class CommandTests(unittest.TestCase):
         host = FakeHost()
         del host.dirs["/run/udev"]
         self.assertEqual(self._run([], host)[0], 1)
+
+    def test_warnings_exit_one(self) -> None:
+        """A warning cannot silently advance an automated runbook."""
+        host = FakeHost()
+        host.files["/sys/module/nvme_core/parameters/multipath"] = "Y\n"
+        code, out, _ = self._run([], host)
+        self.assertEqual(code, 1)
+        self.assertIn("Overall: READY WITH WARNINGS", out)
+
+    def test_required_skip_exits_one_even_without_a_fail(self) -> None:
+        """Unreadable required information is a non-ready result."""
+        host = FakeHost()
+        del host.files["/sys/module/nvidia_fs/parameters/rw_stats_enabled"]
+        code, out, _ = self._run([], host)
+        self.assertEqual(code, 1)
+        self.assertIn("Overall: NOT READY", out)
 
     def test_not_linux_exits_two_and_checks_nothing(self) -> None:
         """macOS and others get a clear message, not a page of SKIP."""
@@ -611,11 +803,14 @@ class CommandTests(unittest.TestCase):
         host = FakeHost()
         host.commands[("/opt/gds/gdscheck", "-p")] = (0, "use_compat_mode : false\n")
         out, err = io.StringIO(), io.StringIO()
-        with patch("kvprobe.tier_check.platform.system", return_value="Linux"), patch.object(
-            cli, "LocalHost", return_value=host
-        ), patch.object(cli, "find_gdscheck", return_value=GDSCHECK), patch.dict(
-            "os.environ", {"GDSCHECK": "/opt/gds/gdscheck"}, clear=True
-        ), redirect_stdout(out), redirect_stderr(err):
+        with (
+            patch("kvprobe.tier_check.platform.system", return_value="Linux"),
+            patch.object(cli, "LocalHost", return_value=host),
+            patch.object(cli, "find_gdscheck", return_value=GDSCHECK),
+            patch.dict("os.environ", {"GDSCHECK": "/opt/gds/gdscheck"}, clear=True),
+            redirect_stdout(out),
+            redirect_stderr(err),
+        ):
             cli.main(["tier-check", "--tier-mount", "/mnt/tier"])
         self.assertIn(("/opt/gds/gdscheck", "-p"), host.calls)
 
@@ -626,7 +821,9 @@ class ScriptParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Load the controlled client script as a module."""
-        spec = importlib.util.spec_from_file_location("controlled_client_parity", SCRIPT)
+        spec = importlib.util.spec_from_file_location(
+            "controlled_client_parity", SCRIPT
+        )
         assert spec is not None and spec.loader is not None
         cls.client = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.client)
@@ -641,17 +838,28 @@ class ScriptParityTests(unittest.TestCase):
                 raise FileNotFoundError(path)
             return SimpleNamespace(st_dev=0)
 
-        with patch.object(client.os, "stat", side_effect=stat), patch.object(
-            client.os, "major", return_value=numbers[0] if numbers else 0
-        ), patch.object(client.os, "minor", return_value=numbers[1] if numbers else 0), patch.object(
-            client.Path, "exists", autospec=True, side_effect=lambda p: host.exists(str(p))
-        ), patch.object(
-            client.Path, "resolve", autospec=True, side_effect=lambda p: Path(host.realpath(str(p)))
-        ), patch.object(
-            client.Path,
-            "read_text",
-            autospec=True,
-            side_effect=lambda p, *a, **k: host.files[str(p)],
+        with (
+            patch.object(client.os, "stat", side_effect=stat),
+            patch.object(client.os, "major", return_value=numbers[0] if numbers else 0),
+            patch.object(client.os, "minor", return_value=numbers[1] if numbers else 0),
+            patch.object(
+                client.Path,
+                "exists",
+                autospec=True,
+                side_effect=lambda p: host.exists(str(p)),
+            ),
+            patch.object(
+                client.Path,
+                "resolve",
+                autospec=True,
+                side_effect=lambda p: Path(host.realpath(str(p))),
+            ),
+            patch.object(
+                client.Path,
+                "read_text",
+                autospec=True,
+                side_effect=lambda p, *a, **k: host.files[str(p)],
+            ),
         ):
             return client.tier_io_device(path)
 
@@ -677,6 +885,82 @@ class ScriptParityTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self._kvprobe(host, path), answer)
                 self.assertEqual(self._script(host, path), answer)
+
+
+class RunbookPreflightTests(unittest.TestCase):
+    """The documented preflight block advances only after tier-check is ready."""
+
+    def test_preflight_stops_on_failure_and_keeps_the_calling_shell_open(self) -> None:
+        """Execute the actual Markdown block against stubs, without host I/O."""
+        runbook = (ROOT / "scripts" / "README.md").read_text(encoding="utf-8")
+        block = (
+            runbook.split("**2. Preflight**", 1)[1]
+            .split("```bash\n", 1)[1]
+            .split("```", 1)[0]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binaries = root / "bin"
+            binaries.mkdir()
+            (root / "scripts").mkdir()
+            python_stub = binaries / "python3"
+            python_stub.write_text(
+                "#!/bin/bash\n"
+                'printf "%s\\n" "$*" >> "$CALLS"\n'
+                'if [[ "$*" == *tier-check* ]]; then exit "$TIER_CHECK_EXIT"; fi\n',
+                encoding="utf-8",
+            )
+            sudo_stub = binaries / "sudo"
+            sudo_stub.write_text(
+                '#!/bin/bash\nprintf "sudo\\n" >> "$CALLS"\n', encoding="utf-8"
+            )
+            for stub in (python_stub, sudo_stub):
+                stub.chmod(0o755)
+            launcher = root / "scripts" / "g5_controlled_kv_experiment.sh"
+            launcher.write_text('printf "launcher\\n" >> "$CALLS"\n', encoding="utf-8")
+            environment = {
+                **os.environ,
+                "PATH": str(binaries) + os.pathsep + os.environ.get("PATH", ""),
+                "GDS_MOUNT": "/mnt/tier",
+                "MODEL_HOST_DIR": "/models",
+                "PROBE_CUFILE_BUF_MIB": "1024",
+                "PROBE_MIB_PER_CHUNK": "64",
+                "REP_CONTEXT": "4096",
+                "FILLERS": "6",
+                "OUT": str(root),
+                "RUN": "synthetic",
+            }
+            for status in (0, 1, 2):
+                with self.subTest(tier_check_exit=status):
+                    calls = root / f"calls-{status}.txt"
+                    result = subprocess.run(
+                        [
+                            "bash",
+                            "-c",
+                            block
+                            + '\nresult=$?\nprintf "shell-alive:%s\\n" "$result"\n',
+                        ],
+                        cwd=root,
+                        env={
+                            **environment,
+                            "CALLS": str(calls),
+                            "TIER_CHECK_EXIT": str(status),
+                        },
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=5,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(f"shell-alive:{status}", result.stdout)
+                    invoked = calls.read_text(encoding="utf-8").splitlines()
+                    self.assertIn("tier-check", invoked[0])
+                    if status == 0:
+                        self.assertEqual(
+                            invoked[1:], ["-m kvprobe doctor", "sudo", "launcher"]
+                        )
+                    else:
+                        self.assertEqual(len(invoked), 1)
 
 
 def _jsonschema_usable() -> bool:
@@ -709,13 +993,27 @@ class SchemaTests(unittest.TestCase):
             "unresolved": run_tier_check(_request(), missing),
             "posix": run_tier_check(_request(arm="posix"), FakeHost()),
             "pool": run_tier_check(
-                _request(pool=PoolSizes(cufile_buf_mib=7168, mib_per_chunk=64)), FakeHost()
+                _request(pool=PoolSizes(cufile_buf_mib=7168, mib_per_chunk=64)),
+                FakeHost(),
             ),
         }
+        unreadable = FakeHost()
+        del unreadable.files["/sys/module/nvidia_fs/parameters/rw_stats_enabled"]
+        cases["required_skip"] = run_tier_check(_request(), unreadable)
         for name, document in cases.items():
             with self.subTest(case=name):
                 errors = [error.message for error in validator.iter_errors(document)]
                 self.assertEqual(errors, [])
+
+    def test_schema_requires_readiness_classification_for_every_check(self) -> None:
+        """JSON consumers can distinguish optional SKIP from missing evidence."""
+        # Third Party
+        from jsonschema import Draft202012Validator
+
+        validator = Draft202012Validator(json.loads(SCHEMA.read_text(encoding="utf-8")))
+        document = run_tier_check(_request(), FakeHost())
+        del document["checks"][0]["required_for_ready"]
+        self.assertTrue(list(validator.iter_errors(document)))
 
 
 if __name__ == "__main__":

@@ -118,7 +118,7 @@ observations as diagnostic evidence and repeat the arm after correcting the evic
 
 ## 3. Native and compat are indistinguishable by speed **[principle]**
 
-*Caught by:* `kvprobe tier-check` (T8), which fails `use_compat_mode : true` before the run, and `g2_context_sweep.sh setup` — its gate requires a real device write (files over 64 KiB, bytes on disk, an `nvidia-fs` write delta) before measuring. Blocking compat is still an **operator precondition**: no script edits `cufile.json`.
+*Caught by:* `kvprobe tier-check` (T8), which rejects enabled or forced compat settings before the run and withholds readiness when `gdscheck` fails or its settings are incomplete. This checks configuration, not a native transfer. Then `g2_context_sweep.sh setup` requires a real device write (files over 64 KiB, bytes on disk, an `nvidia-fs` write delta) before measuring. Blocking compat is still an **operator precondition**: no script edits `cufile.json`.
 
 **What you see.** Excellent throughput, so you conclude the accelerated path is active.
 

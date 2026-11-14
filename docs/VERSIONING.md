@@ -31,7 +31,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 | `assessment_version` | `0.6.2` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
 | `normalized_by.version` | `0.4.2` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
 | `manifest_version` | `0.2.1` | — | The `doctor` capability manifest | `kvprobe/doctor.py` |
-| `tier_check_version` | `0.1.0` | — | The `tier-check` result: read-only host conditions for a local NVMe run, not Gate 1 evidence | `kvprobe/tier_check.py`, `schemas/tier-check-v0.1.0.schema.json` |
+| `tier_check_version` | `0.1.0` | — | The `tier-check` result: read-only host conditions for a local PCIe NVMe run; each check records `required_for_ready`, and a required `SKIP` blocks readiness. Not Gate 1 evidence | `kvprobe/tier_check.py`, `schemas/tier-check-v0.1.0.schema.json` |
 | `geometry_version` | `0.1.1` | — | The `geometry` output | `kvprobe/geometry.py` |
 | `trace_plan_version` | `0.1.0` | — | The `gate1 plan` output | `kvprobe/nvme_plan.py` |
 | `collector_version` | `0.3.0-experimental` | — | The `gate1 capture` collector | `kvprobe/nvme_capture.py` |

@@ -80,15 +80,27 @@ mkdir -p "$OUT"
 **2. Preflight** (seconds). `tier-check` checks, read-only, the host conditions that decide whether
 this run can establish Gate 1: the device the counter reads, a dedicated disk, multipath, cgroup v2,
 the filesystem, compat mode, the `nvidia-fs` counters, the container prerequisites and the staging
-pool. **Stop here unless it says `READY`** (exit 0); each `WARN` or `FAIL` names its fix. `doctor`
-lists what the host can observe; `preflight` prints the mount, `gdscheck`, the GPUs and the image id.
+pool. **Continue only with `READY`** (exit 0). Warnings, failures and required checks that could not
+be completed return exit 1; their output names the next check or fix. Optional inputs that were
+not supplied and checks that do not apply to the selected arm may be skipped without blocking
+`READY`. `doctor` lists what the host can observe; `preflight` prints the mount, `gdscheck`, the
+GPUs and the image id.
 
 ```bash
+(
+set -e
 python3 -m kvprobe tier-check --tier-mount "$GDS_MOUNT" --model-dir "$MODEL_HOST_DIR" --cufile-buf-mib "$PROBE_CUFILE_BUF_MIB" --mib-per-chunk "$PROBE_MIB_PER_CHUNK" --context-tokens "$REP_CONTEXT" --fillers "$FILLERS"
 python3 -m kvprobe doctor
 sudo -v
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight
+)
 ```
+
+The subshell stops the block if a command fails, without closing your interactive shell. If it
+stops, resolve the reported condition and rerun step 2 before starting step 3. T3 checks the
+controller transport: NVMe/TCP and NVMe/RDMA are outside this local PCIe baseline. T8 checks
+reported compat settings, including forced compat, rather than proving a native transfer; that
+still requires the controlled run's evidence.
 
 **3. Recompute reference on GPU 1** (about 2 min). It serves until step 8.
 
