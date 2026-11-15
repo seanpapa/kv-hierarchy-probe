@@ -377,17 +377,27 @@ entries, then failed — observed with pools of one and two entries, not establi
 
 **What it is.** On LMCache's GDS backend (v0.4.1, cuFile), every transfer — the write of a stored
 entry and the read of a retrieved one — takes its staging space from the cuFile buffer pool. When
-the pool cannot fit the whole entry because another transfer still holds part of it, the
-allocation returns nothing. The read path logs that at debug level only and gives up, so the
-request falls back to recompute; on the write side the engine still reports the store as done.
+the pool cannot fit the whole entry because another transfer, or an earlier load, still holds part
+of it, the allocation returns nothing. The read path logs that at debug level only and gives up, so
+the request falls back to recompute; on the write side the engine still reports the store as done.
 A pool sized to exactly one entry hits this whenever anything else is in flight. Write times that
 split into two groups — a real write and an almost instant one — are the visible symptom.
 
-A completed load appears to keep its pool space for a while, so the next transfer — a store or
-another load — is the one that fails. Why the space is held and what releases it is not established
-here. Two observations bound it: a failed load does not write the entry again, so the tier keeps an
-entry it cannot serve; and in the one comparison made, a pool with room for one more entry moved the
-limit by one entry without removing it, so a long enough scan of overflowing entries still failed.
+**Why a completed load keeps its pool space.** A successful load also hands the loaded objects to
+the engine's CPU-memory cache (a write-back), and those objects still occupy the cuFile pool. The
+pool space comes back only when the CPU-memory cache evicts them. That cache evicts for its own
+capacity, least recently used first, so a written-back entry stays until entries stored after it
+have pushed it out. Until then the next transfer that needs the space — the write of a store, or
+another load — fails. A debug-level run of the capacity sweep with a one-entry pool showed this:
+every allocation failure came after a write-back that had not been evicted yet, and no load
+succeeded while a written-back entry was still in the CPU-memory cache. With the CPU-memory cache
+disabled, and the write-back with it, the same pool served every retrieval of the capacity sweep and
+every reuse of the admission run, with no fallback. This was established on v0.4.1 only.
+
+Two consequences follow. A failed load does not write the entry again, so the tier keeps an entry it
+cannot serve. A pool with room for one more entry moves the limit by about one entry without removing
+it, because the extra room is taken by the next written-back load; in the one comparison made, a long
+enough scan of overflowing entries still failed.
 
 **Confirm.**
 
@@ -399,17 +409,26 @@ limit by one entry without removing it, so a long enough scan of overflowing ent
   retrieval was not established. For Gate 4 the report does this per entry and names the counts. The write counters are host-wide, so observed write activity alone
   does not prove that the entry reached the target device. Note which transfer came just before each
   failure.
-- Run once at debug log level: the allocation failures appear there and nowhere else.
+- Run once at debug log level: the allocation failures appear there and nowhere else. Before them,
+  look for the write-back line (`Storing N objects from GdsBackend to LocalCPUBackend`) and, between
+  failures, for CPU-memory evictions (`Evicting N chunks from cpu memory`). The write-back line is
+  logged even when the CPU-memory cache is disabled; with it disabled, no eviction follows.
 - Repeat with a pool larger than one entry and watch the drops and fallbacks change.
+- As a diagnostic, repeat with the CPU-memory cache disabled (for LMCache,
+  `LMCACHE_LOCAL_CPU=False`). If the failures disappear at the same pool size, write-back is the
+  cause. This is not a Gate 3 or Gate 4 configuration: without that cache there is no upper tier to
+  compare against.
 
 **It pulls against Gate 4.** Gate 4 needs a staging buffer no larger than one entry, or a hit served
-from the GPU-resident buffer reads zero device bytes and is misclassified as an upper-tier hit. This
-backend needs headroom above one entry to move entries reliably. Record both the pool size and the
-entry size, and read the Gate 4 counts, not only the crossover: a crossover with many fallbacks
-beyond it says the tier did not serve what overflowed in that configuration. The records separate
-stores with no observed write from stores whose write activity was observed but whose retrieval was
-not established; in the runs behind this entry the failures were of the second kind. Because the
-write counters are host-wide, that alone does not prove the entries reached the target device.
+from the GPU-resident buffer reads zero device bytes and is misclassified as an upper-tier hit. With
+its CPU-memory cache on, this backend needs headroom above one entry to move entries reliably,
+because loaded entries written back to that cache keep their pool space. Record both the pool size
+and the entry size, and read the Gate 4 counts, not only the crossover: a crossover with many
+fallbacks beyond it says the tier did not serve what overflowed in that configuration. The records
+separate stores with no observed write from stores whose write activity was observed but whose
+retrieval was not established; in the runs behind this entry the failures were of the second kind.
+Because the write counters are host-wide, that alone does not prove the entries reached the target
+device.
 
 **Invalidates.** Admission economics computed from successful attempts only; any "the tier served the overflow"
 claim without the beyond-capacity counts; engine store throughput as evidence of a write.

@@ -31,6 +31,14 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   schemas to the same answer for every version-specific field. Documents that match their declared
   version are judged as before.
 
+### Changed
+
+- [FAILURE-CATALOG](docs/FAILURE-CATALOG.md#staging-buffer-full) §13 states why a completed GDS load
+  keeps staging-pool space: the backend writes the loaded entry back to its CPU-memory cache, and the
+  space returns only when that cache evicts it. §13 adds how to confirm this at debug level and with
+  that cache disabled. The ROADMAP item that asked for the cause is closed. Gate 3 and Gate 4 pass
+  conditions are unchanged: both already count the failed transfers.
+
 ### Data contracts
 
 - **Changed, compatible:** the evidence schema (an optional pair of Gate 4 counts), the ingest
