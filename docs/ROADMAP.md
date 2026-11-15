@@ -25,9 +25,9 @@ These changes are implemented on `main` but are not yet included in a tagged rel
 
 | Change | What improved | Merged in |
 |---|---|---|
-| Gate 1 next steps | A `FAIL` or `UNPROVEN` report names each finding, why it matters and what to check next ([GATE1](GATE1.md#next-steps-in-the-report)) | [#18](https://github.com/seanpapa/kv-hierarchy-probe/pull/18) |
-| Gate 4 fallback kinds | Complete per-request records let the report split fallbacks beyond capacity by earlier observed store writes of the same entry and suggest where to look first ([METHOD](METHOD.md#gate-4--capacity-crossover)) | [#19](https://github.com/seanpapa/kv-hierarchy-probe/pull/19) |
-| Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | [#19](https://github.com/seanpapa/kv-hierarchy-probe/pull/19), [#20](https://github.com/seanpapa/kv-hierarchy-probe/pull/20) |
+| Gate 1 next steps | A `FAIL` or `UNPROVEN` report names each finding, why it matters and what to check next ([GATE1](GATE1.md#next-steps-in-the-report)) | #18 |
+| Gate 4 fallback kinds | Complete per-request records let the report split fallbacks beyond capacity by earlier observed store writes of the same entry and suggest where to look first ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #19 |
+| Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | #19, #20 |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit
@@ -123,5 +123,3 @@ validation requires additional correlation and path evidence
 A pull request that changes the status of an item updates this page in the same change: it moves the
 item, states what was established, or removes it with the reason. Work in progress may get its own
 GitHub issue; this page links to it while it is open.
-When publishing a release, refresh the completed section so it identifies which changes remain
-unreleased.
