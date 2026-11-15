@@ -85,8 +85,8 @@ this repository has not verified, such as multipath, device stacking or NVMe-oF;
 proceed, and the warning belongs with its results. Failures and required checks that could not be
 completed are `NOT READY` and return exit 1; their output names the next check or fix. Optional inputs that were
 not supplied and checks that do not apply to the selected arm may be skipped without blocking
-`READY`. `doctor` lists what the host can observe; `preflight` prints the mount, `gdscheck`, the
-GPUs and the image id.
+`READY`. [TIER-CHECK](../docs/TIER-CHECK.md) defines each check (T1–T12). `doctor` lists what the
+host can observe; `preflight` prints the mount, `gdscheck`, the GPUs and the image id.
 
 ```bash
 (

@@ -25,6 +25,10 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   `multipath` defaults to `Y`. The runbook stops its preflight block on a nonzero
   exit. An unreadable required transport blocks readiness even if another path is known to
   be remote; the result retains both the remote finding and the missing information.
+- **[TIER-CHECK](docs/TIER-CHECK.md)**, the reference for `tier-check`: what each check (T1–T12)
+  reads and decides, the statuses, the overall result, the exit codes and how native NVMe
+  multipath is judged. A test keeps its table in step with the titles the command prints and
+  checks that its links resolve. README, CHECKLIST, the runbook and the docs index link to it.
 
 ### Changed
 

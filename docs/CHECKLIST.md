@@ -41,7 +41,8 @@ working set, and leftovers in a directory you name ([runbook step 2](../scripts/
 It does not check cold reads, fillers or arm plumbing, and `READY` is not Gate 1 evidence.
 Unreadable required checks block `READY`; unrequested optional checks and inapplicable checks do
 not. Warnings do not block: `READY` and `READY WITH WARNINGS` return exit 0, while a failure or an
-incomplete required check returns exit 1.
+incomplete required check returns exit 1. [TIER-CHECK](TIER-CHECK.md) defines what each check reads
+and decides.
 
 ---
 
