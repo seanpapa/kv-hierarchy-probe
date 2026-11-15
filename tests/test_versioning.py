@@ -15,6 +15,9 @@ REGISTRY = ROOT / "docs" / "VERSIONING.md"
 SOURCES = sorted((ROOT / "kvprobe").glob("*.py")) + sorted((ROOT / "scripts").glob("*.py"))
 VERSION_LITERAL = re.compile(r'"([0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z.]+)?)"')
 WRITTEN_FIELD = re.compile(r'"([a-z_]+_version)"\s*:')
+RELEASE_HEADING = re.compile(
+    r"^#{2,3} ([0-9]+\.[0-9]+\.[0-9]+) — [0-9]{4}-[0-9]{2}-[0-9]{2}", re.MULTILINE
+)
 
 
 def registry() -> dict[str, dict[str, set[str]]]:
@@ -83,10 +86,21 @@ def written_by_code() -> dict[str, set[str]]:
 class VersionRegistryTests(unittest.TestCase):
     """Keep the documented version registry and the code in agreement."""
 
-    def test_package_and_import_version_match_public_baseline(self) -> None:
-        """Installed metadata and the importable package name one baseline."""
-        self.assertEqual(__version__, "0.1.0")
+    def test_package_and_import_version_match(self) -> None:
+        """``pyproject.toml`` and the importable package name one version."""
         self.assertEqual(written_by_code()["version"], {__version__})
+
+    def test_package_version_is_the_latest_released_entry(self) -> None:
+        """The changelog and the version history name the package version as released."""
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        released = RELEASE_HEADING.findall(changelog)
+        self.assertTrue(released, "CHANGELOG.md has no released version heading")
+        self.assertEqual(released[0], __version__, "newest CHANGELOG release is not the package")
+        history = REGISTRY.read_text(encoding="utf-8").split("\n## History\n", 1)
+        self.assertEqual(len(history), 2, "docs/VERSIONING.md has no History section")
+        listed = RELEASE_HEADING.findall(history[1])
+        self.assertTrue(listed, "the VERSIONING history lists no release")
+        self.assertEqual(listed[0], __version__, "newest VERSIONING release is not the package")
 
     def test_baseline_format_is_distinct_from_evidence_schema(self) -> None:
         """Summary files identify their own format without an evidence key."""

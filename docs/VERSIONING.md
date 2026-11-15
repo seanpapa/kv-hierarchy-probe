@@ -26,7 +26,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 
 | Field | Written | Also read | What it versions | Defined in |
 |---|---|---|---|---|
-| `version` | `0.1.0` | — | The package | `pyproject.toml` |
+| `version` | `0.1.1` | — | The package | `pyproject.toml` |
 | `schema_version` | `0.3.1` | `0.3.0`, `0.3.1` | The evidence document that `report` judges | `kvprobe/ingest.py`, `kvprobe/report.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
 | `assessment_version` | `0.6.2` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
 | `normalized_by.version` | `0.4.2` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
@@ -42,11 +42,22 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 | `phase_export_version` | `0.1.0-experimental` | — | The g5 client's phase export metadata | `scripts/g5_controlled_kv_experiment.py` |
 | `baseline_version` | `0.1.0` | — | The regression-summary format produced by `scripts/tools/summarize_runs.py` and compared by `scripts/tools/verify_against_baseline.py`; separate from normalized evidence | `examples/baselines/`, `scripts/tools/summarize_runs.py` |
 
-## Versions at first public release
+## History
 
-The registry above describes the first public release, `0.1.0`. Its independent data-contract
-numbers are retained; a package release does not reset them. The public changelog summarizes the
-implemented behavior rather than replaying unpublished development releases.
+The registry above is the current state of `main`. Each release below lists the contract versions it
+ships; a package release does not reset them. The [changelog](../CHANGELOG.md) describes what changed
+for a user.
+
+### 0.1.1 — 2026-11-15
+
+- **New:** `tier_check_version` `0.1.0`, the `tier-check` result
+  ([TIER-CHECK](TIER-CHECK.md#5-output-and-exit-codes)).
+- **Unchanged:** every other contract keeps the version it had in `0.1.0`.
+
+### 0.1.0 — 2026-11-13 (first public release)
+
+The data-contract numbers below were reached in private development and kept at release. The public
+changelog summarizes the implemented behavior rather than replaying unpublished development releases.
 
 - **Evidence:** ingest writes `0.3.1`; report reads `0.3.0` and `0.3.1`. Both bind measured evidence
   to configuration fingerprints. `0.3.1` can name Gate 5's cacheable tokens per request. Unsupported
