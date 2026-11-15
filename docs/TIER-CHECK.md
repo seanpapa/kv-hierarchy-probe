@@ -80,10 +80,22 @@ return a required `SKIP` naming T1. No other check depends on another's result.
 | T11 | Staging pool below the working set | `--cufile-buf-mib` and `--mib-per-chunk`, given together; `--context-tokens` (default 4096), `--fillers` (6), `--chunk-tokens` (256) | Entry = `mib_per_chunk × ⌈context / chunk⌉`. Working set = `(1 + fillers) × entry`. Pool ≥ working set → **FAIL**. Entry < pool < working set → **WARN**. Pool ≤ entry → **PASS**. Sizes not given, or `posix` arm → optional **SKIP** | A GPU-resident "tier" that never touches the device; Gate 4 misreading staging-pool hits | [FAILURE-CATALOG §2](FAILURE-CATALOG.md#2-the-phantom-tier--a-run-that-never-touched-the-device-principle) and [§13](FAILURE-CATALOG.md#staging-buffer-full); [host precondition 4](../scripts/README.md#preconditions-on-the-host) |
 | T12 | Tier directory is empty | A listing of `--tier-dir` | Directory does not exist yet → **PASS**. Entries other than `lost+found` → **FAIL** with the count. Not listable → required **SKIP**. `--tier-dir` not given → optional **SKIP** | Chunks left by an earlier run served as cache hits | [host precondition 5](../scripts/README.md#preconditions-on-the-host) |
 
-**Why T11 counts `1 + fillers` entries.** For a cold read to reach the device, the measured context and
-every filler must be evicted from the staging pool. A pool that holds all of them can serve every request
-from GPU memory: the phantom tier. A pool between one entry and the working set does not hide the device,
-but Gate 4 needs the pool to hold at most one entry to classify hits, so it warns.
+**What T11 calculates, and what it does not show.** Fillers exist to push the target out of the staging
+pool so that the target's next use must reach the device
+([PROMPT-CONSTRUCTION §4](PROMPT-CONSTRUCTION.md#4-filler-pressure-unique-versus-reuse)); the fillers
+themselves need not be evicted. T11's working set is the target entry plus one entry per filler. If the
+pool can hold all of them, the fillers cannot displace the target, and its next use can be served from
+GPU memory without touching the device: the phantom tier
+([FAILURE-CATALOG §2](FAILURE-CATALOG.md#2-the-phantom-tier--a-run-that-never-touched-the-device-principle)).
+That case fails. A pool larger than one entry but smaller than the working set warns, because Gate 4
+needs the pool to hold at most one entry to classify hits.
+
+This is a capacity calculation on the sizes you pass, not evidence of device access. A pool smaller than
+the working set makes displacement possible; whether the target was displaced depends on the eviction
+behaviour and the filler policy (a repeated filler can be a hit that applies no pressure). The
+calculation also counts each filler as one entry of `--context-tokens`; fillers of another size change
+the real working set. Only the run's read bytes on the tier's device, per request, show that a retrieval
+reached the device ([Gate 1](GATE1.md)).
 
 **Why T12 is optional.** The reference launchers clear their own directories before each arm. The check
 matters for a launcher that does not.
@@ -161,4 +173,5 @@ T3 checks the transport of everything that can carry a head's I/O:
 - **T8 and older GDS releases.** A `gdscheck` that prints no `force_compat_mode` line gives a required
   `SKIP`, so such a host cannot reach `READY`.
 - **Configuration, not behaviour.** T7, T8 and T10 check the settings that make cuFile fall back or
-  fail; they do not observe a transfer. The run's evidence decides whether the tier served.
+  fail, and T11 checks capacity arithmetic; none of them observes a transfer. The run's evidence decides
+  whether the tier served.
