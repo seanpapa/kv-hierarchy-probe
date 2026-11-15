@@ -1,6 +1,6 @@
 # Roadmap and known limitations
 
-> Reviewed: 2026-11-13. This page states what the probe does not verify yet and what is planned.
+> Reviewed: 2026-11-15. This page states what the probe does not verify yet and what is planned.
 > It is not a schedule. Items move or close through pull requests that update this page.
 
 **Verified today:** local NVMe only, on the paths listed in
@@ -14,10 +14,13 @@ names and internal paths.
 
 ## Next
 
-**Gate 1 output: missing evidence, why it matters, what to collect next.** The report already states
-why a Gate 1 result is `UNPROVEN` or `FAIL`, but the reason, its rationale and the next step are spread
-across the report output, [GATE1](GATE1.md) and [EVIDENCE](EVIDENCE.md). The change keeps every
-verdict, claim allowance and exit code as they are.
+**Gates 3 and 4: report the kinds of `fallback` separately.** The problem and when it closes are
+described under [known limitations](#gates-3-and-4-the-kinds-of-fallback-are-reported-together).
+
+The previous entry, Gate 1 output that names the missing evidence, why it matters and what to collect
+next, is done: the text and Markdown reports now end with
+[next steps](GATE1.md#next-steps-in-the-report) when Gate 1 is `FAIL` or `UNPROVEN`, and every
+verdict, claim allowance and exit code is unchanged.
 
 ## Known limitations in the verified path
 

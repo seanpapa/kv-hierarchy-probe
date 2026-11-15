@@ -78,8 +78,42 @@ limits are in [NVMe command observation](GATE1-NVME-TRACE.md).
 | NVMe analyzer `usable` | Inspect bytes, commands, outside-phase I/O, loss and pairing. This is observation quality, not serving PASS. |
 | NVMe analyzer `incomplete` | Retain reasons and raw artifacts, keeping them visible without filtering or replacement. |
 | `report` Gate 1 `PASS` | Every request correct, with expected bytes on a counter filtered to the tier's device. Proceed to Gates 2–5, repeating Gate 1 checks at every point. |
-| `report` Gate 1 `UNPROVEN` | No violation measured, but the evidence cannot establish the tier served: usually a counter not filtered to the tier's device. Re-measure with the [per-device counter](EXTERNAL-RUNS.md#reaching-gate-1-pass). |
-| `report` Gate 1 `FAIL` | A measured violation: wrong output, zero or too few bytes, or too many on a filtered counter. Fix the tier or the measurement before Gates 2–5. |
+| `report` Gate 1 `UNPROVEN` | No violation measured, but the evidence cannot establish the tier served: usually a counter not filtered to the tier's device. Re-measure with the [per-device counter](EXTERNAL-RUNS.md#reaching-gate-1-pass). The report lists what is missing ([next steps](#next-steps-in-the-report)). |
+| `report` Gate 1 `FAIL` | A measured violation: wrong output, zero or too few bytes, or too many on a filtered counter. Fix the tier or the measurement before Gates 2–5. The report lists each violation and what to check ([next steps](#next-steps-in-the-report)). |
+
+### Next steps in the report
+
+When Gate 1 is `FAIL` or `UNPROVEN`, the text and Markdown reports end with a *Next steps* block, and
+`first-visit` adds it to the bundled reports it writes. Each step names one finding with its count,
+why it keeps Gate 1 from passing, what to check or collect next, what the finding does not show, and
+where to read more. The block follows the optional READINGS section, so it remains the last section
+with either the default options or `--no-readings`. Measured violations come first, then missing
+evidence. Every finding that applies is listed, so one problem does not hide another.
+
+The block explains the verdict; it does not change it. The verdict, the claim state and the exit code
+stay as they are. The JSON report (`--format json`) and its `assessment_version` are unchanged, and a
+`PASS`, `SKIP_UNSUPPORTED` or `INVALID` Gate 1 gets no block. A step never names a cause the evidence
+cannot show: zero bytes, for example, can mean the entry was never written or that another buffer
+answered, and the step says both.
+
+| Gate 1 | Step | Finding |
+|---|---|---|
+| `FAIL` | Wrong output | A request, from any source, returned a wrong answer |
+| `FAIL` | Tier device read nothing | A target-tier request with known expected bytes read zero bytes |
+| `FAIL` | Fewer bytes than expected | A target-tier request read fewer bytes than expected in its own interval, beyond the tolerance, on any counter |
+| `FAIL` | More bytes than expected on the tier's device | A target-tier request read more bytes than expected in its own interval on a counter filtered to the tier's device |
+| `FAIL` | No target-tier request | No request is attributed to the target tier |
+| `FAIL` or `UNPROVEN` | Counter not filtered to the tier's device | A target-tier request's counter is not filtered to the tier's device |
+| `FAIL` or `UNPROVEN` | Not observed per request | A request is observed per batch or per run, not in its own interval |
+| `FAIL` or `UNPROVEN` | Heuristic attribution | A request observed in its own interval rests on `heuristic` confidence |
+| `FAIL` or `UNPROVEN` | No expected bytes | A target-tier request has no expected byte count |
+
+The first four are measured violations. Every recorded request must return a correct answer,
+including recompute and upper-tier requests; an incorrect answer alone does not identify its cause.
+
+The last five describe missing evidence. A run with no target-tier requests keeps the existing
+`FAIL` verdict because it contains no tier service to verify. Missing findings follow any measured
+violations, and remain visible after a `FAIL` so they can be collected once a violation is fixed.
 
 Optional [`gate1 verify`](GATE1-SERVING-REVIEW.md) records a reviewed companion
 for serial native cuFile GDS when all automatic/operator checks hold. Actual

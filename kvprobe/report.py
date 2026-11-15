@@ -2,6 +2,7 @@
 """Normalize five-gate evidence into a claim-safe report."""
 
 # Standard
+from dataclasses import dataclass
 import math
 from statistics import median
 from typing import Any
@@ -378,6 +379,95 @@ def _capacity_classification_counts(
     return totals, beyond
 
 
+@dataclass(frozen=True)
+class _Gate1Request:
+    """How one validated attribution request bears on Gate 1.
+
+    Attributes:
+        target: The request is attributed to the target tier.
+        correct: The request's answer was correct.
+        per_request: The request was observed in its own interval.
+        passing_confidence: The observation is ``direct`` or ``corroborating``.
+        filtered: The counter is filtered to the target device.
+        expected_known: The expected byte count is above zero.
+        byte_match: Observed bytes are within the tolerance of expected bytes.
+        moved_nothing: Expected bytes are known and none were observed.
+        below_expected: Observed bytes are below the tolerance band.
+        above_expected: Observed bytes are above the tolerance band.
+    """
+
+    target: bool
+    correct: bool
+    per_request: bool
+    passing_confidence: bool
+    filtered: bool
+    expected_known: bool
+    byte_match: bool
+    moved_nothing: bool
+    below_expected: bool
+    above_expected: bool
+
+    @property
+    def attributable(self) -> bool:
+        """Correct, observed in its own interval, at a confidence that can pass."""
+        return self.correct and self.per_request and self.passing_confidence
+
+    @property
+    def proven(self) -> bool:
+        """An attributable target-tier request with matching filtered bytes."""
+        return self.target and self.attributable and self.filtered and self.byte_match
+
+    @property
+    def violation(self) -> bool:
+        """Evidence that contradicts tier service for this request.
+
+        A wrong answer always counts. For a target-tier request, so do no bytes
+        at all; fewer bytes than expected in the request's own interval, which
+        holds for any counter, because an unfiltered counter only adds other
+        devices' bytes; and more bytes than expected on a counter filtered to
+        the target device. More bytes on an unfiltered counter prove nothing
+        either way.
+        """
+        if not self.correct:
+            return True
+        if not self.target:
+            return False
+        return (
+            self.moved_nothing
+            or (self.per_request and self.below_expected)
+            or (self.per_request and self.filtered and self.above_expected)
+        )
+
+
+def _gate1_request(request: dict[str, Any], tolerance: float) -> _Gate1Request:
+    """Classify one attribution request that has already been validated.
+
+    Args:
+        request: One entry of ``attribution.requests``.
+        tolerance: Allowed fraction between expected and observed bytes.
+
+    Returns:
+        The request's Gate 1 classification.
+    """
+    attribution = request["attribution"]
+    expected = float(request["expected_bytes"])
+    observed = float(request["observed_bytes"])
+    lower = expected * (1 - tolerance)
+    upper = expected * (1 + tolerance)
+    return _Gate1Request(
+        target=request["source"] == "target_tier",
+        correct=request["correct"] is True,
+        per_request=attribution["granularity"] == "per_request",
+        passing_confidence=attribution["confidence"] in _PASSING_CONFIDENCE,
+        filtered=attribution["target_device_filtered"] is True,
+        expected_known=expected > 0,
+        byte_match=expected > 0 and lower <= observed <= upper,
+        moved_nothing=expected > 0 and observed == 0,
+        below_expected=observed < lower,
+        above_expected=observed > upper,
+    )
+
+
 def _assess_attribution_v0_2(
     section: dict[str, Any], artifact_ids: set[str]
 ) -> dict[str, Any]:
@@ -449,42 +539,18 @@ def _assess_attribution_v0_2(
                 f"attribution request {index}.target_device_filtered must be boolean"
             )
         _artifact_refs(attribution, artifact_ids, f"attribution request {index}")
-        expected = _non_negative_number(request, "expected_bytes")
-        observed = _non_negative_number(request, "observed_bytes")
-        filtered = attribution["target_device_filtered"] is True
-
-        # A request is attributable when it was answered correctly and its own
-        # interval was observed with a confidence that can support a verdict.
-        attributable = (
-            request["correct"] is True
-            and granularity == "per_request"
-            and confidence in _PASSING_CONFIDENCE
-        )
-        attributable_count += int(attributable)
-        violated_count += int(request["correct"] is not True)
-        if source != "target_tier":
+        _non_negative_number(request, "expected_bytes")
+        _non_negative_number(request, "observed_bytes")
+        classified = _gate1_request(request, float(tolerance))
+        attributable_count += int(classified.attributable)
+        violated_count += int(classified.violation)
+        if not classified.target:
             continue
         target_count += 1
-        lower = expected * (1 - float(tolerance))
-        upper = expected * (1 + float(tolerance))
-        byte_match = expected > 0 and lower <= observed <= upper
-        byte_match_count += int(byte_match)
-        moved_nothing = expected > 0 and observed == 0
-        no_bytes_count += int(moved_nothing)
-        proven = attributable and filtered and byte_match
-        proven_count += int(proven)
-        direct_count += int(proven and confidence == "direct")
-        # Evidence of a violation: nothing moved at all; or this request's own
-        # interval shows fewer bytes than expected, which holds for any counter,
-        # because an unfiltered counter only adds other devices' bytes; or a
-        # counter filtered to the target device shows more than expected. More
-        # bytes on an unfiltered counter prove nothing either way.
-        per_request = granularity == "per_request"
-        violated_count += int(
-            moved_nothing
-            or (per_request and observed < lower)
-            or (per_request and filtered and observed > upper)
-        )
+        byte_match_count += int(classified.byte_match)
+        no_bytes_count += int(classified.moved_nothing)
+        proven_count += int(classified.proven)
+        direct_count += int(classified.proven and confidence == "direct")
 
     if target_count == 0 or violated_count > 0:
         status = "FAIL"
@@ -510,6 +576,249 @@ def _assess_attribution_v0_2(
         )
     reason += _warmup_note(section, artifact_ids)
     return _gate_v0_2(1, status, reason)
+
+
+@dataclass(frozen=True)
+class Gate1NextStep:
+    """One reason a Gate 1 result is not ``PASS``, and what to do about it.
+
+    Attributes:
+        title: Short name of the finding; ``docs/GATE1.md`` lists every title.
+        kind: ``Observed`` for a measured violation, ``Missing`` for absent evidence.
+        finding: What the evidence shows or lacks, with counts.
+        why: Why the finding keeps Gate 1 from passing.
+        action_kind: ``Check`` after a violation, ``Next`` for missing evidence.
+        action: What to check or collect next.
+        limit: What the finding does not show.
+        see: Repository documents, as ``path`` or ``path#anchor``.
+    """
+
+    title: str
+    kind: str
+    finding: str
+    why: str
+    action_kind: str
+    action: str
+    limit: str
+    see: tuple[str, ...]
+
+
+def _gate1_section(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], float]:
+    """Return the validated attribution requests and their byte tolerance."""
+    section = payload["evidence"]["attribution"]
+    return section["requests"], float(section.get("tolerance_fraction", 0.10))
+
+
+def gate1_next_steps(
+    payload: dict[str, Any], assessment: dict[str, Any]
+) -> tuple[Gate1NextStep, ...]:
+    """Explain a Gate 1 ``FAIL`` or ``UNPROVEN`` as findings and next steps.
+
+    The steps restate what the evidence shows; they never change a verdict,
+    the claim state or an exit code, and they do not name a cause the evidence
+    cannot show. Measured violations come first, then missing evidence. Every
+    applicable finding is listed, so one problem does not hide another.
+
+    Args:
+        payload: Evidence that :func:`assess_evidence` accepted.
+        assessment: The result of :func:`assess_evidence` for ``payload``.
+
+    Returns:
+        The steps, or an empty tuple when Gate 1 is ``PASS``,
+        ``SKIP_UNSUPPORTED`` or ``INVALID``.
+    """
+    gate1 = assessment["gates"][0]
+    if gate1["status"] not in {"FAIL", "UNPROVEN"}:
+        return ()
+    requests, tolerance = _gate1_section(payload)
+    classified = [_gate1_request(request, tolerance) for request in requests]
+    targets = [item for item in classified if item.target]
+    total, target_total = len(classified), len(targets)
+    band = f"{tolerance * 100:g}%"
+    steps: list[Gate1NextStep] = []
+
+    wrong = sum(not item.correct for item in classified)
+    if wrong:
+        steps.append(
+            Gate1NextStep(
+                title="Wrong output",
+                kind="Observed",
+                finding=f"{wrong}/{total} requests returned a wrong answer.",
+                why="every recorded request must return a correct answer, "
+                "regardless of its source.",
+                action_kind="Check",
+                action="the failing requests' outputs against their expected answers. "
+                "If only cache hits differ and their bytes matched, read the "
+                "cold-hit note before blaming the tier.",
+                limit="a wrong answer does not show which component changed it.",
+                see=("docs/FAILURE-CATALOG.md#cold-hit-completions",),
+            )
+        )
+    nothing = sum(item.moved_nothing for item in targets)
+    if nothing:
+        steps.append(
+            Gate1NextStep(
+                title="Tier device read nothing",
+                kind="Observed",
+                finding=f"{nothing}/{target_total} target-tier requests moved no "
+                "bytes from the tier's device.",
+                why="they are attributed to the tier, but its device read nothing "
+                "in their intervals.",
+                action_kind="Check",
+                action="whether the entries were written to the device, and whether "
+                "a GPU-resident staging buffer or an upper tier answered instead.",
+                limit="zero bytes alone does not show which of these happened.",
+                see=(
+                    "docs/FAILURE-CATALOG.md#2-the-phantom-tier--a-run-that-never-"
+                    "touched-the-device-principle",
+                    "docs/FAILURE-CATALOG.md#staging-buffer-full",
+                ),
+            )
+        )
+    short = sum(
+        item.per_request and item.below_expected and not item.moved_nothing
+        for item in targets
+    )
+    if short:
+        steps.append(
+            Gate1NextStep(
+                title="Fewer bytes than expected",
+                kind="Observed",
+                finding=f"{short}/{target_total} target-tier requests read fewer "
+                f"bytes than expected in their own intervals, beyond the {band} "
+                "tolerance.",
+                why="the device delivered at most part of the KV, so the rest came "
+                "from elsewhere, or the expected bytes are wrong.",
+                action_kind="Check",
+                action="the expected bytes against the live serving settings (model "
+                "revision, dtype, chunk size, parallelism), and whether these "
+                "were partial hits.",
+                limit="fewer bytes do not show where the rest of the KV came from.",
+                see=("docs/GEOMETRY.md",),
+            )
+        )
+    excess = sum(
+        item.per_request and item.filtered and item.above_expected for item in targets
+    )
+    if excess:
+        steps.append(
+            Gate1NextStep(
+                title="More bytes than expected on the tier's device",
+                kind="Observed",
+                finding=f"{excess}/{target_total} target-tier requests read more "
+                f"bytes than expected, beyond the {band} tolerance, on a counter "
+                "filtered to the tier's device.",
+                why="other I/O on the same device was counted with them, or the "
+                "expected bytes are too small.",
+                action_kind="Check",
+                action="that nothing else used the device during the intervals "
+                "(a dedicated disk; tier-check T2), and the expected bytes.",
+                limit="more bytes do not show which of the two it was.",
+                see=("docs/TIER-CHECK.md", "docs/GEOMETRY.md"),
+            )
+        )
+    if not targets:
+        steps.append(
+            Gate1NextStep(
+                title="No target-tier request",
+                kind="Missing",
+                finding="a request attributed to the target tier; the run has none.",
+                why="Gate 1 judges the requests the run says the tier served; "
+                "with none there is nothing to verify.",
+                action_kind="Check",
+                action="that the run read back entries the tier stores after the "
+                "upper tiers were cleared, and that the producer labels those "
+                "requests target_tier.",
+                limit="a run without tier reads says nothing about the tier.",
+                see=("docs/CHECKLIST.md", "docs/EVIDENCE.md#serving-tier-verification"),
+            )
+        )
+    unfiltered = sum(not item.filtered for item in targets)
+    if unfiltered:
+        steps.append(
+            Gate1NextStep(
+                title="Counter not filtered to the tier's device",
+                kind="Missing",
+                finding=f"byte evidence filtered to the tier's device for "
+                f"{unfiltered}/{target_total} target-tier requests.",
+                why="a counter that is not filtered to the device can include other "
+                "devices' I/O, so matching bytes do not show that this device "
+                "served the request.",
+                action_kind="Next",
+                action="record a counter filtered to the tier's device for each "
+                "request's interval, and keep the device mapping and how the "
+                "counter was read.",
+                limit="a device filter alone does not separate a request's I/O from "
+                "other I/O on the same device.",
+                see=("docs/EXTERNAL-RUNS.md#reaching-gate-1-pass",),
+            )
+        )
+    batched = sum(not item.per_request for item in classified)
+    if batched:
+        steps.append(
+            Gate1NextStep(
+                title="Not observed per request",
+                kind="Missing",
+                finding=f"an observation of each request's own interval for "
+                f"{batched}/{total} requests, which are observed per batch or "
+                "per run.",
+                why="a batch or run total cannot show which request read the bytes.",
+                action_kind="Next",
+                action="read the counter at the start and end of each request.",
+                limit="per-request intervals still need a quiet device to exclude "
+                "other I/O.",
+                see=("docs/GATE1.md#3-collect-evidence",),
+            )
+        )
+    heuristic = sum(
+        item.per_request and not item.passing_confidence for item in classified
+    )
+    if heuristic:
+        steps.append(
+            Gate1NextStep(
+                title="Heuristic attribution",
+                kind="Missing",
+                finding=f"a direct or corroborating observation for "
+                f"{heuristic}/{total} requests, which rest on a heuristic.",
+                why="a heuristic infers where the KV came from; Gate 1 needs bytes "
+                "observed outside the serving framework.",
+                action_kind="Next",
+                action="observe those requests with a device counter or a trace "
+                "instead of inferring their source.",
+                limit="a corroborating counter can still include other traffic.",
+                see=("docs/EVIDENCE.md#serving-tier-verification",),
+            )
+        )
+    unknown = sum(not item.expected_known for item in targets)
+    if unknown:
+        steps.append(
+            Gate1NextStep(
+                title="No expected bytes",
+                kind="Missing",
+                finding=f"expected bytes for {unknown}/{target_total} target-tier "
+                "requests.",
+                why="without an expected payload the observed bytes cannot be "
+                "compared.",
+                action_kind="Next",
+                action="derive the expected bytes per request from the model and "
+                "the serving settings with kvprobe geometry.",
+                limit="expected bytes are arithmetic and hold only for the live "
+                "serving settings.",
+                see=("docs/GEOMETRY.md",),
+            )
+        )
+    return tuple(steps)
+
+
+def _next_step_lines(step: Gate1NextStep) -> list[str]:
+    """Return the labelled lines of one step, without numbering or indentation."""
+    return [
+        f"{step.kind}: {step.finding}",
+        f"Why it matters: {step.why}",
+        f"{step.action_kind}: {step.action}",
+        f"Limit: {step.limit}",
+        "See: " + ", ".join(step.see),
+    ]
 
 
 def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1293,13 +1602,16 @@ def assess_evidence(payload: Any) -> dict[str, Any]:
 
 
 def render_text(
-    assessment: dict[str, Any], readings: dict[str, Any] | None = None
+    assessment: dict[str, Any],
+    readings: dict[str, Any] | None = None,
+    next_steps: tuple[Gate1NextStep, ...] = (),
 ) -> str:
     """Render an assessment for a terminal.
 
     Args:
         assessment: Result returned by :func:`assess_evidence`.
         readings: Optional compute_readings result; omitted by default.
+        next_steps: Result of :func:`gate1_next_steps`; nothing is added when empty.
 
     Returns:
         Plain-text report.
@@ -1341,17 +1653,25 @@ def render_text(
         from .readings import render_readings
 
         lines.extend(["", render_readings(readings, assessment["overall"] == "PASS")])
+    if next_steps:
+        lines.extend(["", f"Next steps — Gate 1 {assessment['gates'][0]['status']}"])
+        for number, step in enumerate(next_steps, start=1):
+            lines.append(f"{number}. {step.title}")
+            lines.extend(f"   {line}" for line in _next_step_lines(step))
     return "\n".join(lines)
 
 
 def render_markdown(
-    assessment: dict[str, Any], readings: dict[str, Any] | None = None
+    assessment: dict[str, Any],
+    readings: dict[str, Any] | None = None,
+    next_steps: tuple[Gate1NextStep, ...] = (),
 ) -> str:
     """Render an assessment as portable Markdown.
 
     Args:
         assessment: Result returned by :func:`assess_evidence`.
         readings: Optional compute_readings result; omitted by default.
+        next_steps: Result of :func:`gate1_next_steps`; nothing is added when empty.
 
     Returns:
         Markdown report.
@@ -1406,4 +1726,15 @@ def render_markdown(
                 "```",
             ]
         )
+    if next_steps:
+        lines.extend(
+            ["", f"## Next steps — Gate 1 {assessment['gates'][0]['status']}", ""]
+        )
+        for number, step in enumerate(next_steps, start=1):
+            details = _next_step_lines(step)
+            lines.append(f"{number}. **{step.title}**")
+            lines.extend(f"   - {line}" for line in details[:-1])
+            lines.append(
+                "   - See: " + ", ".join(f"`{target}`" for target in step.see)
+            )
     return "\n".join(lines)

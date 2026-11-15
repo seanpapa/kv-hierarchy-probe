@@ -299,6 +299,8 @@ The command returns for every supported schema version:
 A failing report has `performance_claims: "suppressed"` and contains no `performance` object.
 Gate reasons and the last fully attributed concurrency remain visible because a failed run is
 evidence too. JSON output is suitable for CI; Markdown output is suitable for an evidence bundle.
+When Gate 1 is `FAIL` or `UNPROVEN`, the text and Markdown reports end with
+[next steps](GATE1.md#next-steps-in-the-report); the JSON report does not carry them.
 
 ## What normalization does not prove
 

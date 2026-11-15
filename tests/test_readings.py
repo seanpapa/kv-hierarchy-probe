@@ -15,7 +15,13 @@ from pathlib import Path
 from kvprobe.cli import main
 from kvprobe.ingest import ingest_files
 from kvprobe.readings import compute_readings, render_readings
-from kvprobe.report import EvidenceError, assess_evidence, render_markdown, render_text
+from kvprobe.report import (
+    EvidenceError,
+    assess_evidence,
+    gate1_next_steps,
+    render_markdown,
+    render_text,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_HASHES = {
@@ -349,12 +355,15 @@ class EfficiencyReadings(unittest.TestCase):
 
     def test_no_readings_keeps_the_claim_only_report(self) -> None:
         path = ROOT / "examples/evidence/attribution-unfiltered-counter.json"
-        assessment = assess_evidence(json.loads(path.read_text()))
+        payload = json.loads(path.read_text())
+        assessment = assess_evidence(payload)
         output = io.StringIO()
         with redirect_stdout(output):
             main(["report", str(path), "--no-readings"])
-        self.assertEqual(output.getvalue().rstrip("\n"), render_text(assessment))
+        expected = render_text(assessment, None, gate1_next_steps(payload, assessment))
+        self.assertEqual(output.getvalue().rstrip("\n"), expected)
         self.assertIn("Performance numbers omitted", output.getvalue())
+        self.assertNotIn("READINGS", output.getvalue())
 
     def test_readings_never_evaluate(self) -> None:
         """Readings state numbers and evidence grades, not whether they are good."""
