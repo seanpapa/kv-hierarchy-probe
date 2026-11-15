@@ -170,7 +170,7 @@ class Normalization(unittest.TestCase):
 
     def test_output_is_assessable(self) -> None:
         assessment = assess_evidence(_build([_row()]))
-        self.assertEqual(assessment["assessment_version"], "0.6.2")
+        self.assertEqual(assessment["assessment_version"], "0.6.3")
         attribution = next(g for g in assessment["gates"] if g["id"] == 1)
         self.assertEqual(attribution["status"], "UNPROVEN")
         self.assertIsNone(assessment.get("performance"))
@@ -259,7 +259,7 @@ class ConfigurationMatching(unittest.TestCase):
         run = _run([_row()])
         run["arguments"]["model_root"] = CONFIGURATION["model"]["root"]
         run["attribution_provider"] = "cgroup_blk"
-        self.assertEqual(_document([("run", run)])["schema_version"], "0.3.1")
+        self.assertEqual(_document([("run", run)])["schema_version"], "0.3.2")
 
     def test_a_run_from_another_device_is_refused(self) -> None:
         """A configuration cannot claim a device the run did not use.
@@ -283,7 +283,7 @@ class ConfigurationMatching(unittest.TestCase):
         run["device_id"] = CONFIGURATION["runtime"]["device_id"]
         run["gpu_index"] = CONFIGURATION["runtime"]["gpu_index"]
 
-        self.assertEqual(_document([("run", run)])["schema_version"], "0.3.1")
+        self.assertEqual(_document([("run", run)])["schema_version"], "0.3.2")
 
     def test_a_run_device_is_not_checked_against_an_unstated_index(self) -> None:
         """An optional field the configuration omits has nothing to contradict.
@@ -299,7 +299,7 @@ class ConfigurationMatching(unittest.TestCase):
 
         document = _document([("run", run)], configuration=config)
 
-        self.assertEqual(document["schema_version"], "0.3.1")
+        self.assertEqual(document["schema_version"], "0.3.2")
 
     def test_recompute_arm_in_arguments_is_not_treated_as_tier(self) -> None:
         config = copy.deepcopy(CONFIGURATION)

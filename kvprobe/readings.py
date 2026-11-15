@@ -61,7 +61,7 @@ def compute_readings(payload: dict[str, Any]) -> dict[str, Any]:
     """Calculate efficiency from supported, consistently bound evidence.
 
     Args:
-        payload: Normalized evidence version 0.2.0, 0.3.0 or 0.3.1.
+        payload: Normalized evidence version 0.3.0, 0.3.1 or 0.3.2.
 
     Returns:
         Efficiency metrics with unrounded values, units, sample counts and

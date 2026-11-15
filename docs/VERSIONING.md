@@ -27,9 +27,9 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 | Field | Written | Also read | What it versions | Defined in |
 |---|---|---|---|---|
 | `version` | `0.1.1` | — | The package | `pyproject.toml` |
-| `schema_version` | `0.3.1` | `0.3.0`, `0.3.1` | The evidence document that `report` judges | `kvprobe/ingest.py`, `kvprobe/report.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
-| `assessment_version` | `0.6.2` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
-| `normalized_by.version` | `0.4.2` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
+| `schema_version` | `0.3.2` | `0.3.0`, `0.3.1`, `0.3.2` | The evidence document that `report` judges | `kvprobe/ingest.py`, `kvprobe/report.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
+| `assessment_version` | `0.6.3` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
+| `normalized_by.version` | `0.4.3` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
 | `manifest_version` | `0.2.1` | — | The `doctor` capability manifest | `kvprobe/doctor.py` |
 | `tier_check_version` | `0.1.0` | — | The `tier-check` result: read-only host conditions for a local PCIe NVMe run; each check records `required_for_ready`, and a required `SKIP` blocks readiness. Not Gate 1 evidence | `kvprobe/tier_check.py`, `schemas/tier-check-v0.1.0.schema.json` |
 | `geometry_version` | `0.1.1` | — | The `geometry` output | `kvprobe/geometry.py` |

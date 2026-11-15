@@ -125,7 +125,7 @@ Product releases, evidence schemas, and measurement profiles have separate versi
 | Dimension | Example | Meaning |
 |---|---|---|
 | Product release | `kv-hierarchy-probe 1.x`, `2.x` | Shipped features and claim boundary |
-| Evidence schema | current `0.3.1`, later versions | Machine-readable document contract |
+| Evidence schema | current `0.3.2`, later versions | Machine-readable document contract |
 | Measurement profile | proposed `component_tier`, `disaggregated_path` | Unit of claim and mandatory evidence |
 | Execution topology | proposed `colocated`, `disaggregated` | Whether prefill and decode share a worker group |
 | Cache scope | proposed `single_domain`, `multi_domain` | Number and placement of cache domains in scope |

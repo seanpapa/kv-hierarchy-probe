@@ -6,7 +6,7 @@ only when every gate passes. It also shows efficiency readings with attribution 
 gate withholds the performance family and leaves the integrity readings, which is where the
 failure usually shows. See [efficiency readings](#efficiency-readings).
 
-The current contract is `schema_version: "0.3.1"`; `0.3.0` documents also remain supported
+The current contract is `schema_version: "0.3.2"`; `0.3.0` and `0.3.1` documents also remain supported
 without changing their verdicts. All are intentionally smaller than raw serving-stack
 output. An adapter should keep raw evidence in access-controlled storage, then derive a sanitized
 normalized document without deleting failed requests. Raw bundles are not kept in this repository.
@@ -43,7 +43,8 @@ future implementation must test both. See [Measurement profiles and version dire
 | Version | Status | Contract |
 |---|---|---|
 | `0.3.0` | Supported | Configuration fingerprints and bindings for every measured section. `runtime.device_id` is required; `gpu_index` is optional. |
-| `0.3.1` | **Current**; written by `kvprobe ingest` | Adds optional `envelope.request_cacheable_tokens`, the per-request cacheable input size shared by the measured concurrency sweep. Inconsistent recorded input sizes are refused. |
+| `0.3.1` | Supported | Adds optional `envelope.request_cacheable_tokens`, the per-request cacheable input size shared by the measured concurrency sweep. Inconsistent recorded input sizes are refused. |
+| `0.3.2` | **Current**; written by `kvprobe ingest` | Adds an optional pair to both Gate 4 count blocks, `fallback_store_write_observed` and `fallback_store_write_not_observed`, which split `fallback` by whether the entry's store write was observed earlier in the sweep. Both or neither; they add up to `fallback`. |
 
 Unsupported versions are refused with a message naming `kvprobe ingest`; no configuration or provenance
 is guessed to upgrade an old document. Normalize retained measurement outputs using the appropriate
@@ -51,7 +52,7 @@ adapter and explicitly reviewed configuration. See [VERSIONING](VERSIONING.md) f
 
 ## Producing evidence from a run
 
-`kvprobe ingest` normalizes the four run shapes this repository produces into `0.3.1`, and takes
+`kvprobe ingest` normalizes the four run shapes this repository produces into `0.3.2`, and takes
 as many of them as you have — one document can carry every gate that was measured:
 
 ```bash
@@ -83,6 +84,22 @@ first successful NVMe hit; this preserves the failure case where the working set
 upper tier but the target tier served nothing. Evidence written by an older adapter remains
 readable, but it has no retained classification totals. The report's Gate 4 result states those beyond-capacity counts: how many
 retrievals the target tier served and how many fell back or missed.
+
+**Gate 4 splits `fallback` when the producer kept per-request records.** When every row carries
+`stores` and `retrievals`, ingest reads each entry's history across the sweep. A fallback
+counts as `fallback_store_write_observed` when an earlier store or retrieval record of the same
+entry, in that row or an earlier one, showed a write of at least 95% of `per_entry_mib`; otherwise
+it counts as `fallback_store_write_not_observed`. The same row's store is not enough on its own,
+because the sweep refreshes every entry and a refresh of an entry the tier already holds may write
+nothing. The fallback's own retrieval does not count, because a recompute may store the entry again
+after the load failed. If such a fallback's entry has only unavailable write readings, the split is
+left out and the counts stand alone. Ingest refuses records present in only some rows, records
+without `per_entry_mib`, and records whose classes disagree with the row's counts. The report then
+names both counts and where to look first: the load path and the staging pool
+([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)) when every fallback followed an
+observed write, the store path when none did, both when mixed. The write counter is host-wide, so an
+observed write does not show that the entry reached the target device, and the result says so. The
+split never changes a verdict; a Gate 4 `FAIL` carries it in its reason.
 
 **Gate 3 keeps every attempted outcome.** Adapter `0.4.0` reads the producer's per-attempt records
 and emits `calculation_basis: all_attempts`, signed `realized_reuse_saving_s`, and
@@ -143,6 +160,7 @@ configuration consistency, not independently captured model/image identity.
 | `break_even` | Non-empty retrieval and recompute TTFT samples | 2 — Single-hit retrieval break-even |
 | `admission` | Store cost, expected reuse count, and (for adapter `0.4.0`) realized saving plus complete attempt-outcome counts | 3 — Admission cost |
 | `capacity` | Whether upper-tier overflow and target-tier service were observed | 4 — Capacity justification |
+| `capacity.*classification_counts.fallback_store_write_*` | Optional (`0.3.2`): `fallback` split by whether the entry's store write was observed earlier in the sweep | 4 — named in the result |
 | `envelope.levels` | Requests and target-tier-served requests at each concurrency | 5 — Operating envelope |
 | `envelope.request_cacheable_tokens` | Optional (`0.3.1`): cacheable tokens per request, one value for the whole sweep | 5 — named in the result |
 
@@ -279,8 +297,9 @@ host paths, container IDs, or complete raw logs in the normalized document. Cros
 ensure every `artifact_refs` entry names a declared artifact.
 
 The supported machine-readable contracts are
-[`../schemas/evidence-v0.3.0.schema.json`](../schemas/evidence-v0.3.0.schema.json) and
-[`../schemas/evidence-v0.3.1.schema.json`](../schemas/evidence-v0.3.1.schema.json). The reporter also
+[`../schemas/evidence-v0.3.0.schema.json`](../schemas/evidence-v0.3.0.schema.json),
+[`../schemas/evidence-v0.3.1.schema.json`](../schemas/evidence-v0.3.1.schema.json) and
+[`../schemas/evidence-v0.3.2.schema.json`](../schemas/evidence-v0.3.2.schema.json). The reporter also
 performs semantic checks that JSON Schema cannot express, including artifact cross-references,
 target-tier byte tolerance, configuration fingerprint verification, and binding coverage.
 

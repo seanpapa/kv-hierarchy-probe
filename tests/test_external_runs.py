@@ -74,7 +74,7 @@ class ExternalBlockTierRuns(unittest.TestCase):
 @unittest.skipUnless(_HAS_JSONSCHEMA, "jsonschema is a test-only dependency")
 class ExternalRunSchema(unittest.TestCase):
     def test_ingested_external_runs_satisfy_the_schema(self) -> None:
-        validator = _validator("0.3.1")
+        validator = _validator("0.3.2")
         for name in ("served.json", "second-use-admission.json", "partial.json"):
             with self.subTest(run=name):
                 document = ingest_files([FIXTURES / name], CONFIGURATION, run_id=name)

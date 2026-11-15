@@ -428,6 +428,12 @@ only an `unattributed` path prevents a valid Gate 3 verdict. The normalized bloc
 `calculation_basis: all_attempts`, the mean realized saving, and counts that must add up to every
 attempt. Break-even reuse count = mean admission cost ÷ mean realized reuse saving.
 
+**Limit: a Gate 3 `fallback` is not split.** The producer sets `fallback` when the store's write was
+seen and the reuse read nothing from the device. That reuse was either recomputed or served by a tier
+above; the records keep its TTFT, so only a latency heuristic against a recompute reference could
+tell them apart, and Gate 3 does not apply one. Neither kind receives positive saving credit, so the
+break-even result is the same either way.
+
 ### Gate 4 — capacity crossover
 
 Each retrieval is labelled `dram` (zero device read, and fast enough relative to the recompute
@@ -442,11 +448,14 @@ The total resident size at the flip approximates usable L1 capacity. **A tier th
 the device in your working-set range is not justified by this gate**, however fast it is.
 
 Each row also keeps `stores` and `retrievals`: one record per request with the entry index, the
-host-wide `nvidia-fs` write and read MiB observed during it, TTFT and class. They are raw evidence —
-the report reads only the counts — and they narrow the question a `fallback` raises: was there no
-observed write for the entry's store, or was write activity observed while retrieval was not
-established? The counters are host-wide, so they do not by themselves place the write on the target
-device.
+host-wide `nvidia-fs` write and read MiB observed during it, TTFT and class. Ingest reads them to
+answer the question a `fallback` raises: was a store write of that entry observed earlier in the
+sweep, or not? The entry's history decides, not the same row's store, because a refresh of an entry
+the tier already holds may write nothing. The Gate 4 result names both counts and where to look
+first — the load path and the staging pool when the write was observed, the store path when it was
+not ([EVIDENCE](EVIDENCE.md#producing-evidence-from-a-run)). The counters are host-wide, so an
+observed write does not place the entry on the target device. Evidence without the records keeps the
+count-only result.
 
 ### Gate 5 — envelope
 
@@ -469,7 +478,7 @@ Report the last passing level as the validated envelope.
 | Gate 3 has any `unattributed` attempt | the path of at least one attempt could not be classified, so Gate 3 is `UNPROVEN` | fix counter availability/scope and re-run; do not substitute successful-only samples |
 | Gate 2 or 3 `UNPROVEN` | Gate 1 did not pass, so the timings do not measure the tier | fix the Gate 1 evidence first; the break-even and admission results follow from it |
 | Gate 4 result: necessity not shown | the tier above always had room | either the tier is unjustified for this workload, or your sweep never exceeded capacity |
-| Gate 4 `FAIL` | the tier above overflowed and the tier served nothing | the tier lost the entries it should have held; fix it before measuring further |
+| Gate 4 `FAIL` | the tier above overflowed and the tier served nothing | the tier lost the entries it should have held; fix it before measuring further, starting where the reason points when the producer kept per-request records |
 | Gate 5 result: requests above some concurrency are not credited to the tier | batches at that level missed the tier-byte or correctness check, so that level is **outside** the envelope | report the last fully credited level with its input size, and keep the failing level outside the saturation claim |
 
 > Gates 3 and 4 were cross-checked on the test host — Gate 3 with context order reversed, Gate 4 only

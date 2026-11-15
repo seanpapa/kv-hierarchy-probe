@@ -6,7 +6,7 @@ This adapter bridges script-specific measurement output and the reporter's
 versioned evidence contract without inventing missing attribution or identity.
 
 The adapters read the four run shapes this repository produces — context sweep,
-concurrency sweep, admission cost, capacity sweep — and emit `0.3.1`. They
+concurrency sweep, admission cost, capacity sweep — and emit `0.3.2`. They
 derive only what a run actually recorded, and require the caller to state what a
 run cannot know: the configuration, because no run records its own model
 revision or eviction policy, and the expected reuse count, because that is a
@@ -29,7 +29,7 @@ from typing import Any
 from .configuration import ConfigurationError, fingerprint_configuration, validate_configuration
 
 ADAPTER_NAME = "g5-context-adapter"
-ADAPTER_VERSION = "0.4.2"
+ADAPTER_VERSION = "0.4.3"
 
 #: Select by the configured arm, never by field presence or byte magnitude.
 #: NVFS is a host-wide total and is never target-device filtered. cgroup_blk is
@@ -450,6 +450,172 @@ def build_admission(run: dict[str, Any], expected_reuses: float) -> dict[str, An
     return block
 
 
+#: A write of at least this fraction of one entry counts as an observed store
+#: write of that entry, the same threshold the producers use for a device read.
+_WRITE_OBSERVED_FRACTION = 0.95
+
+#: Producer retrieval classes and the row count each one must agree with.
+_RETRIEVAL_KINDS = {
+    "dram": "dram_hits",
+    "nvme": "nvme_hits",
+    "fallback": "fallback",
+    "miss": "miss",
+}
+
+
+def _record_write_mib(record: dict[str, Any], where: str) -> float | None:
+    """Return a record's observed write, or None when the counter was unavailable.
+
+    Args:
+        record: One producer store or retrieval record.
+        where: Location of the record, for error messages.
+
+    Returns:
+        The host-wide write MiB observed during the request, or None.
+
+    Raises:
+        IngestError: If ``write_mib`` is missing, negative, or not a number.
+    """
+    if "write_mib" not in record:
+        raise IngestError(f"{where} has no write_mib")
+    value = record["write_mib"]
+    if value is None:
+        return None
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+        raise IngestError(f"{where}.write_mib must be a non-negative number or null")
+    return float(value)
+
+
+def _record_entry(record: Any, where: str) -> int:
+    """Return a record's entry index.
+
+    Args:
+        record: One producer store or retrieval record.
+        where: Location of the record, for error messages.
+
+    Returns:
+        The non-negative entry index.
+
+    Raises:
+        IngestError: If the record is not an object or its entry is not a
+            non-negative integer.
+    """
+    if not isinstance(record, dict):
+        raise IngestError(f"{where} must be an object")
+    entry = record.get("entry")
+    if not isinstance(entry, int) or isinstance(entry, bool) or entry < 0:
+        raise IngestError(f"{where}.entry must be a non-negative integer")
+    return entry
+
+
+def _fallback_store_writes(
+    run: dict[str, Any], rows: list[dict[str, Any]]
+) -> list[tuple[int, int]] | None:
+    """Split each row's fallbacks by whether the entry's store write was observed.
+
+    The sweep stores (or refreshes) every entry of a working set, then
+    retrieves each one, row after row. A refresh of an entry the tier already
+    holds may write nothing, so the same row's store record cannot say whether
+    an entry was ever written. The entry's whole history is read instead: a
+    fallback counts as following an observed store write when some earlier
+    store or retrieval record of the same entry, in this row or an earlier one,
+    showed a write of at least ``_WRITE_OBSERVED_FRACTION`` of one entry. The
+    fallback's own retrieval does not count, because a recompute may store the
+    entry again after the load failed. The write counter is host-wide, so an
+    observed write does not show that the entry reached the target device.
+
+    Args:
+        run: Parsed capacity run, for ``per_entry_mib``.
+        rows: The run's rows, already checked for ascending working sets and
+            complete counts.
+
+    Returns:
+        One ``(store write observed, store write not observed)`` pair per row,
+        or None when the run kept no per-request records or a fallback's entry
+        has an unavailable write reading and no observed write before it.
+
+    Raises:
+        IngestError: If only some rows keep records, ``per_entry_mib`` is
+            missing, or a row's records disagree with its counts.
+    """
+    with_records = ["stores" in row or "retrievals" in row for row in rows]
+    if not any(with_records):
+        return None
+    if not all("stores" in row and "retrievals" in row for row in rows):
+        raise IngestError(
+            "capacity per-request records must appear in every row, with both "
+            "stores and retrievals"
+        )
+    per_entry_mib = run.get("per_entry_mib")
+    if (
+        not isinstance(per_entry_mib, (int, float))
+        or isinstance(per_entry_mib, bool)
+        or per_entry_mib <= 0
+    ):
+        raise IngestError(
+            "capacity per-request records need a positive per_entry_mib"
+        )
+    threshold = float(per_entry_mib) * _WRITE_OBSERVED_FRACTION
+
+    written: set[int] = set()
+    unknown: set[int] = set()
+
+    def note(entry: int, write: float | None) -> None:
+        """Record what one request showed about an entry's store write."""
+        if write is None:
+            if entry not in written:
+                unknown.add(entry)
+        elif write >= threshold:
+            written.add(entry)
+
+    split: list[tuple[int, int]] = []
+    undetermined = False
+    for index, row in enumerate(rows):
+        stores = row["stores"]
+        retrievals = row["retrievals"]
+        if not isinstance(stores, list) or not isinstance(retrievals, list):
+            raise IngestError(
+                f"capacity row {index} stores and retrievals must be lists"
+            )
+        for position, record in enumerate(stores):
+            where = f"capacity row {index} stores[{position}]"
+            entry = _record_entry(record, where)
+            note(entry, _record_write_mib(record, where))
+        kinds = dict.fromkeys(_RETRIEVAL_KINDS, 0)
+        seen: set[int] = set()
+        observed = 0
+        not_observed = 0
+        for position, record in enumerate(retrievals):
+            where = f"capacity row {index} retrievals[{position}]"
+            entry = _record_entry(record, where)
+            if entry in seen:
+                raise IngestError(f"{where} retrieves entry {entry} twice")
+            seen.add(entry)
+            kind = record.get("kind")
+            if kind not in _RETRIEVAL_KINDS:
+                raise IngestError(
+                    f"{where}.kind must be one of {', '.join(_RETRIEVAL_KINDS)}"
+                )
+            kinds[kind] += 1
+            write = _record_write_mib(record, where)
+            if kind == "fallback":
+                if entry in written:
+                    observed += 1
+                elif entry in unknown:
+                    undetermined = True
+                else:
+                    not_observed += 1
+            note(entry, write)
+        for kind, field in _RETRIEVAL_KINDS.items():
+            if kinds[kind] != row[field]:
+                raise IngestError(
+                    f"capacity row {index} records {kinds[kind]} {kind} "
+                    f"retrievals but {field}={row[field]}"
+                )
+        split.append((observed, not_observed))
+    return None if undetermined else split
+
+
 def build_capacity(
     run: dict[str, Any], upper_tier_capacity_bytes: int
 ) -> dict[str, Any]:
@@ -461,12 +627,17 @@ def build_capacity(
             the target tier.
 
     Returns:
-        A ``capacity`` evidence block.
+        A ``capacity`` evidence block. When every row keeps per-request
+        ``stores`` and ``retrievals`` records, both classification blocks also
+        split ``fallback`` into ``fallback_store_write_observed`` and
+        ``fallback_store_write_not_observed`` (see
+        ``_fallback_store_writes``); otherwise they carry the counts only.
 
     Raises:
         IngestError: If the sweep recorded no rows, a row does not match the
-            current Gate 4 producer contract, or its classification counts do
-            not cover the declared working set exactly.
+            current Gate 4 producer contract, its classification counts do
+            not cover the declared working set exactly, or its per-request
+            records are partial or disagree with its counts.
     """
     rows = run.get("rows") or []
     if not rows:
@@ -492,6 +663,7 @@ def build_capacity(
         "miss": 0,
     }
     overflow_totals = dict.fromkeys(totals, 0)
+    beyond_rows: list[bool] = []
     previous_working_set = 0
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
@@ -535,10 +707,25 @@ def build_capacity(
         for name, value in row_totals.items():
             totals[name] += value
         resident_bytes = int(float(resident_mib) * 1024 * 1024)
-        if resident_bytes > upper_tier_capacity_bytes:
+        beyond = resident_bytes > upper_tier_capacity_bytes
+        if beyond:
             for name, value in row_totals.items():
                 overflow_totals[name] += value
+        beyond_rows.append(beyond)
         previous_working_set = working_set
+
+    split = _fallback_store_writes(run, rows)
+    if split is not None:
+        for block, selected in (
+            (totals, [True] * len(rows)),
+            (overflow_totals, beyond_rows),
+        ):
+            block["fallback_store_write_observed"] = sum(
+                observed for (observed, _), keep in zip(split, selected) if keep
+            )
+            block["fallback_store_write_not_observed"] = sum(
+                missing for (_, missing), keep in zip(split, selected) if keep
+            )
 
     overflow = overflow_totals["retrievals_expected"] > 0
     served = overflow_totals["target_tier_served"] > 0
@@ -589,7 +776,7 @@ def build_document(
         configuration_id: Identifier the measurements are bound to.
 
     Returns:
-        An evidence document at ``schema_version`` 0.3.1.
+        An evidence document at ``schema_version`` 0.3.2.
 
     Raises:
         IngestError: If a run shape is unknown, two runs of the same kind
@@ -697,7 +884,7 @@ def build_document(
         )
 
     return {
-        "schema_version": "0.3.1",
+        "schema_version": "0.3.2",
         "run_id": run_id,
         "description": (
             "normalized by "
@@ -950,7 +1137,7 @@ def ingest_files(
         expected_reuses: Reuses expected per admitted entry, for gate 3.
 
     Returns:
-        An evidence document at ``schema_version`` 0.3.1.
+        An evidence document at ``schema_version`` 0.3.2.
 
     Raises:
         IngestError: If an input is not valid JSON or cannot be normalized.

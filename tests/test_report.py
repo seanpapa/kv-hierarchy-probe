@@ -27,6 +27,7 @@ class UnsupportedSchemaVersions(unittest.TestCase):
         self.assertNotIn("0.2.0", str(caught.exception))
         self.assertIn("0.3.0", str(caught.exception))
         self.assertIn("0.3.1", str(caught.exception))
+        self.assertIn("0.3.2", str(caught.exception))
 
     def test_configuration_free_v0_2_is_refused(self) -> None:
         """The public reader cannot invent a configuration for old evidence."""
