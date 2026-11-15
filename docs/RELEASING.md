@@ -10,6 +10,9 @@ index; users install from a clone of the tag.
    writes and reads.
 2. Move the `unreleased` entry in [CHANGELOG](../CHANGELOG.md) under the version and date. Say what
    changed for a user and what is still limited.
+3. Refresh [ROADMAP — Recently completed on main](ROADMAP.md#recently-completed-on-main).
+   Identify which completed changes this release includes and which remain unreleased, and update
+   the section's release status and CHANGELOG link accordingly.
 
 ## Checks — all must pass on the tree being tagged
 
