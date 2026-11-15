@@ -4,6 +4,17 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
+## Unreleased
+
+### Added
+
+- **Gate 1 next steps.** When Gate 1 is `FAIL` or `UNPROVEN`, the text and Markdown reports, and the
+  bundled reports `first-visit` writes, end with a block that names each finding with its count,
+  why it keeps Gate 1 from passing, what to check or collect next, what it does not show, and where
+  to read more ([GATE1](docs/GATE1.md#next-steps-in-the-report)). Violations come first, then
+  missing evidence, and every finding that applies is listed. Verdicts, claim state, exit codes, the
+  JSON report and `assessment_version` are unchanged.
+
 ## 0.1.1 — 2026-11-15
 
 A compatible addition: one new command, `tier-check`, and its data contract. No existing command,

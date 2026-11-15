@@ -30,7 +30,14 @@ from .pool_sizing import (
     derive_required_live_chunks,
 )
 from .readings import compute_readings
-from .report import EvidenceError, assess_evidence, render_markdown, render_text
+from .report import (
+    EvidenceError,
+    Gate1NextStep,
+    assess_evidence,
+    gate1_next_steps,
+    render_markdown,
+    render_text,
+)
 from .serving_verification import VerificationError, render_verification, verify_serving
 from .tier_check import (
     ARMS,
@@ -514,9 +521,11 @@ def _report(args: argparse.Namespace) -> int:
             assessment = {**assessment, "readings": readings}
         rendered = json.dumps(assessment, indent=2, sort_keys=True)
     elif args.format == "markdown":
-        rendered = render_markdown(assessment, readings)
+        rendered = render_markdown(
+            assessment, readings, gate1_next_steps(payload, assessment)
+        )
     else:
-        rendered = render_text(assessment, readings)
+        rendered = render_text(assessment, readings, gate1_next_steps(payload, assessment))
     _write_output(rendered, args.output)
     overall = str(assessment["overall"])
     if overall.lower() == "pass":
@@ -984,23 +993,29 @@ def _assess_demo_examples(
             output_dir.mkdir(parents=True, exist_ok=True)
             destination = output_dir / filename.replace(".json", ".report.md")
             destination.write_text(
-                _demo_report_markdown(filename, assessment), encoding="utf-8"
+                _demo_report_markdown(
+                    filename, assessment, gate1_next_steps(payload, assessment)
+                ),
+                encoding="utf-8",
             )
     return assessed
 
 
-def _demo_report_markdown(filename: str, assessment: dict) -> str:
+def _demo_report_markdown(
+    filename: str, assessment: dict, next_steps: tuple[Gate1NextStep, ...]
+) -> str:
     """Render one bundled example with standalone provenance.
 
     Args:
         filename: Bundled evidence filename used to identify its origin.
         assessment: Result returned by :func:`assess_evidence`.
+        next_steps: Result of :func:`gate1_next_steps` for the example.
 
     Returns:
         Markdown that cannot be mistaken for a measurement of the current host.
     """
     origin, _, _ = _DEMO_NOTES[filename]
-    rendered = render_markdown(assessment).rstrip()
+    rendered = render_markdown(assessment, None, next_steps).rstrip()
     title, _, body = rendered.partition("\n")
     banner = "\n".join(
         (
