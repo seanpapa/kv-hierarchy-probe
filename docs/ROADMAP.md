@@ -18,12 +18,20 @@ names and internal paths.
 when it closes are described under
 [known limitations](#gds-backend-staging-pool-space-appears-to-be-held-after-a-completed-load).
 
-The previous entry, reporting the kinds of `fallback` separately, is done. When the capacity
-producer kept per-request records, the Gate 4 result names how many fallbacks beyond capacity
-followed an observed store write of the same entry and where to look first
-([METHOD, Gate 4](METHOD.md#gate-4--capacity-crossover)). A Gate 3 `fallback` is not split; that is
-written down as a limit ([METHOD, Gate 3](METHOD.md#gate-3--admission-cost)) because it does not
-change the break-even result. Verdicts are unchanged.
+## Recently completed on main
+
+These changes are implemented on `main` but are not yet included in a tagged release. See
+[CHANGELOG — Unreleased](../CHANGELOG.md#unreleased) for details.
+
+| Change | What improved | Merged in |
+|---|---|---|
+| Gate 1 next steps | A `FAIL` or `UNPROVEN` report names each finding, why it matters and what to check next ([GATE1](GATE1.md#next-steps-in-the-report)) | [#18](https://github.com/seanpapa/kv-hierarchy-probe/pull/18) |
+| Gate 4 fallback kinds | Complete per-request records let the report split fallbacks beyond capacity by earlier observed store writes of the same entry and suggest where to look first ([METHOD](METHOD.md#gate-4--capacity-crossover)) | [#19](https://github.com/seanpapa/kv-hierarchy-probe/pull/19) |
+| Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | [#19](https://github.com/seanpapa/kv-hierarchy-probe/pull/19), [#20](https://github.com/seanpapa/kv-hierarchy-probe/pull/20) |
+
+The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
+device. A Gate 3 `fallback` remains unsplit, as a documented limit
+([METHOD, Gate 3](METHOD.md#gate-3--admission-cost)); its break-even result is unchanged.
 
 ## Known limitations in the verified path
 
@@ -115,3 +123,5 @@ validation requires additional correlation and path evidence
 A pull request that changes the status of an item updates this page in the same change: it moves the
 item, states what was established, or removes it with the reason. Work in progress may get its own
 GitHub issue; this page links to it while it is open.
+When publishing a release, refresh the completed section so it identifies which changes remain
+unreleased.
