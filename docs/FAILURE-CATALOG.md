@@ -383,16 +383,19 @@ the request falls back to recompute; on the write side the engine still reports 
 A pool sized to exactly one entry hits this whenever anything else is in flight. Write times that
 split into two groups — a real write and an almost instant one — are the visible symptom.
 
-**Why a completed load keeps its pool space.** A successful load also hands the loaded objects to
-the engine's CPU-memory cache (a write-back), and those objects still occupy the cuFile pool. The
-pool space comes back only when the CPU-memory cache evicts them. That cache evicts for its own
-capacity, least recently used first, so a written-back entry stays until entries stored after it
-have pushed it out. Until then the next transfer that needs the space — the write of a store, or
-another load — fails. A debug-level run of the capacity sweep with a one-entry pool showed this:
-every allocation failure came after a write-back that had not been evicted yet, and no load
-succeeded while a written-back entry was still in the CPU-memory cache. With the CPU-memory cache
-disabled, and the write-back with it, the same pool served every retrieval of the capacity sweep and
-every reuse of the admission run, with no fallback. This was established on v0.4.1 only.
+**What supports the explanation.** LMCache v0.4.1 source shows that a successful load hands the
+loaded objects to the engine's CPU-memory cache (a write-back). That cache retains references to the
+objects until eviction, so the cuFile allocator cannot reuse their pool space while those references
+remain. The cache evicts for its own capacity, least recently used first.
+
+A debug-level capacity sweep with a one-entry pool supports that sequence: every allocation failure
+came after a write-back not yet followed by the eviction sequence associated with the next successful
+load. With the CPU-memory cache disabled, and the write-back with it, the same pool served every
+retrieval of the capacity sweep and every reuse of the admission run, with no fallback. The allocator
+did not expose pool occupancy, and the eviction log did not identify cache keys, so release of a
+specific allocation at a specific eviction was not observed directly. The explanation is supported
+by source review and this controlled cache-on/cache-off comparison, and is scoped to LMCache v0.4.1
+and this workload.
 
 Two consequences follow. A failed load does not write the entry again, so the tier keeps an entry it
 cannot serve. A pool with room for one more entry moves the limit by about one entry without removing
@@ -416,14 +419,14 @@ enough scan of overflowing entries still failed.
 - Repeat with a pool larger than one entry and watch the drops and fallbacks change.
 - As a diagnostic, repeat with the CPU-memory cache disabled (for LMCache,
   `LMCACHE_LOCAL_CPU=False`). If the failures disappear at the same pool size, write-back is the
-  cause. This is not a Gate 3 or Gate 4 configuration: without that cache there is no upper tier to
-  compare against.
+  supported explanation. This is not a Gate 3 or Gate 4 configuration: without that cache there is
+  no upper tier to compare against.
 
 **It pulls against Gate 4.** Gate 4 needs a staging buffer no larger than one entry, or a hit served
 from the GPU-resident buffer reads zero device bytes and is misclassified as an upper-tier hit. With
 its CPU-memory cache on, this backend needs headroom above one entry to move entries reliably,
-because loaded entries written back to that cache keep their pool space. Record both the pool size
-and the entry size, and read the Gate 4 counts, not only the crossover: a crossover with many
+consistent with the source-supported retention mechanism above. Record both the pool size and the
+entry size, and read the Gate 4 counts, not only the crossover: a crossover with many
 fallbacks beyond it says the tier did not serve what overflowed in that configuration. The records
 separate stores with no observed write from stores whose write activity was observed but whose
 retrieval was not established; in the runs behind this entry the failures were of the second kind.

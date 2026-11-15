@@ -33,11 +33,11 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 
 ### Changed
 
-- [FAILURE-CATALOG](docs/FAILURE-CATALOG.md#staging-buffer-full) §13 states why a completed GDS load
-  keeps staging-pool space: the backend writes the loaded entry back to its CPU-memory cache, and the
-  space returns only when that cache evicts it. §13 adds how to confirm this at debug level and with
-  that cache disabled. The ROADMAP item that asked for the cause is closed. Gate 3 and Gate 4 pass
-  conditions are unchanged: both already count the failed transfers.
+- [FAILURE-CATALOG](docs/FAILURE-CATALOG.md#staging-buffer-full) §13 records the source-supported
+  explanation and controlled CPU-cache-on/off comparison for staging-pool space held after a GDS
+  load. The ROADMAP item that asked for the cause is closed. This documentation-only change does not
+  alter the Gate 3 or Gate 4 pass conditions; reviewing whether those conditions remain sufficient
+  is retained as the next ROADMAP item.
 
 ### Data contracts
 
