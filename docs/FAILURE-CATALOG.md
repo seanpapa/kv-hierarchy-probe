@@ -399,8 +399,8 @@ and this workload.
 
 Two consequences follow. A failed load does not write the entry again, so the tier keeps an entry it
 cannot serve. A pool with room for one more entry moves the limit by about one entry without removing
-it, because the extra room is taken by the next written-back load; in the one comparison made, a long
-enough scan of overflowing entries still failed.
+it; in the one comparison made, that result is consistent with the extra room being taken by the next
+written-back load, and a long enough scan of overflowing entries still failed.
 
 **Confirm.**
 
