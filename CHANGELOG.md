@@ -4,7 +4,10 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
-## Unreleased
+## 0.1.1 — 2026-11-15
+
+A compatible addition: one new command, `tier-check`, and its data contract. No existing command,
+data contract or verdict changed.
 
 ### Added
 
@@ -39,6 +42,25 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   give the command that turns them on.
 - [FAILURE-CATALOG](docs/FAILURE-CATALOG.md) §§2–5 and §9 name the `tier-check` item that catches
   each failure before the run.
+- README section 3 says only what `tier-check` does, when it stops the runbook and that `READY` is
+  not serving evidence; the exit codes are in [TIER-CHECK](docs/TIER-CHECK.md#5-output-and-exit-codes).
+- The `0.1.0` known limits below were reworded after release to separate the all-five run from the
+  Gate 1 and Gate 2 runs on three paths. The scope they describe did not change.
+
+### Data contracts
+
+- **New:** `tier_check_version` `0.1.0`, written by `tier-check` and described by
+  `schemas/tier-check-v0.1.0.schema.json`.
+- **Unchanged:** every contract that `0.1.0` wrote or read. [VERSIONING](docs/VERSIONING.md) lists
+  them.
+
+### Known limits
+
+- `tier-check` has run on hardware on one host, against a single-path local NVMe tier, where it
+  returned `READY`. Native multipath heads, NVMe-oF and device stacking are covered by tests only.
+- `READY` is not Gate 1 evidence. The staging-pool check (T11) is arithmetic on the sizes you pass;
+  only the run's per-request read bytes show that the device served a request.
+- The known limits of `0.1.0` still apply.
 
 ## 0.1.0 — 2026-11-13 (first public release)
 

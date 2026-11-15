@@ -186,9 +186,10 @@ one. See [Profiles and version direction](docs/PROFILES.md).
 
 ## Project status
 
-**First public release: `v0.1.0` (2026-11-13).** The portable CLI, normalized evidence contract,
-five-gate assessment, geometry tools, and one reference implementation are available; the tag is
-listed under GitHub Releases and its notes are in the [CHANGELOG](CHANGELOG.md). Development
+**Latest release: `v0.1.1` (2026-11-15)**, which adds the `tier-check` preflight; the first public
+release was `v0.1.0` (2026-11-13). The portable CLI, normalized evidence contract, five-gate
+assessment, geometry tools, and one reference implementation are available; the tags are listed
+under GitHub Releases and their notes are in the [CHANGELOG](CHANGELOG.md). Development
 continues on `main`, and data contracts may change before 1.0 under [VERSIONING](docs/VERSIONING.md).
 The reference stack has been exercised on controlled hardware, but the repository does not claim
 independent reproduction or general performance across products and systems. Current evidence and

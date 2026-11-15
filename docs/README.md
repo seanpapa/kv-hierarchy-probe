@@ -132,7 +132,7 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
   run under that contract remain unestablished. Further NVMe feature expansion is paused;
   completion of that verification track was not a prerequisite for the public baseline. It does not
   replace common validation or the evidence report's Gate 1 verdict.
-- `tier-check`, a read-only preflight for a local NVMe tier, is on `main` and not yet in a release.
+- `tier-check`, a read-only preflight for a local NVMe tier, ships in `0.1.1`.
   The minimal runbook runs it as step 2, and [`TIER-CHECK.md`](TIER-CHECK.md) defines its checks.
   On the reference host's single-path local tier it returned `READY`; native multipath heads are
   covered by tests only. `READY` says that host conditions which would spoil a run were not found;
