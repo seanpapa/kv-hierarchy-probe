@@ -44,6 +44,8 @@ NOT_READY = "NOT READY"
 DEFAULT_CONTEXT_TOKENS = 4096
 DEFAULT_FILLERS = 6
 DEFAULT_CHUNK_TOKENS = 256
+#: The runbook exports FILLER_TOKENS=4096; the launchers alone default to 8192.
+DEFAULT_FILLER_TOKENS = 4096
 
 COMMAND_TIMEOUT_SECONDS = 10
 
@@ -202,6 +204,7 @@ class PoolSizes:
         context_tokens: Tokens of the measured context (``REP_CONTEXT``).
         fillers: Distinct filler contexts between measurements (``FILLERS``).
         chunk_tokens: Tokens per stored chunk.
+        filler_tokens: Tokens of each filler context (``FILLER_TOKENS``).
     """
 
     cufile_buf_mib: int
@@ -209,6 +212,7 @@ class PoolSizes:
     context_tokens: int = DEFAULT_CONTEXT_TOKENS
     fillers: int = DEFAULT_FILLERS
     chunk_tokens: int = DEFAULT_CHUNK_TOKENS
+    filler_tokens: int = DEFAULT_FILLER_TOKENS
 
 
 @dataclass(frozen=True)
@@ -1200,10 +1204,17 @@ def check_staging_pool(request: TierCheckRequest) -> CheckResult:
     Args:
         request: What to check.
 
+    The working set is the target entry plus one filler entry per filler, each
+    sized from its own token count. The result is capacity arithmetic on the
+    sizes given, not evidence that the device was read.
+
     Returns:
-        ``PASS`` when the pool holds at most one entry, ``WARN`` when it holds
-        more but less than the working set, ``FAIL`` when the working set fits,
-        ``SKIP`` for the POSIX arm or when no sizes were given.
+        ``FAIL`` when the working set fits in the pool. Otherwise ``WARN`` when
+        the pool holds more than one target entry (Gate 4's one-entry rule), or
+        when the target entry or a filler entry is larger than the pool (a
+        store path no recorded run measured), with every applicable reason;
+        ``PASS`` when neither applies; ``SKIP`` for the POSIX arm or when no
+        sizes were given.
     """
     title = "Staging pool below the working set"
     if request.arm != "gds":
@@ -1222,10 +1233,12 @@ def check_staging_pool(request: TierCheckRequest) -> CheckResult:
             required_for_ready=False,
         )
     entry = pool.mib_per_chunk * math.ceil(pool.context_tokens / pool.chunk_tokens)
-    working_set = (1 + pool.fillers) * entry
+    filler_entry = pool.mib_per_chunk * math.ceil(pool.filler_tokens / pool.chunk_tokens)
+    working_set = entry + pool.fillers * filler_entry
     sizes = (
         f"pool {pool.cufile_buf_mib} MiB, entry {entry} MiB "
-        f"({pool.context_tokens} tokens), working set {working_set} MiB "
+        f"({pool.context_tokens} tokens), filler entry {filler_entry} MiB "
+        f"({pool.filler_tokens} tokens), working set {working_set} MiB "
         f"(1 + {pool.fillers} fillers)"
     )
     if pool.cufile_buf_mib >= working_set:
@@ -1236,17 +1249,32 @@ def check_staging_pool(request: TierCheckRequest) -> CheckResult:
             sizes,
             "The whole working set fits in the GPU staging pool, so requests can be served from "
             "GPU memory without touching the device: a phantom tier.",
-            f"Set PROBE_CUFILE_BUF_MIB to one entry or less ({_FAILURE_CATALOG} §2).",
+            f"Set PROBE_CUFILE_BUF_MIB to one target entry ({_FAILURE_CATALOG} §2).",
         )
+    why: list[str] = []
+    fix: list[str] = []
     if pool.cufile_buf_mib > entry:
-        return CheckResult(
-            "T11",
-            title,
-            WARN,
-            sizes,
-            "A pool larger than one entry lets Gate 4 misread GPU-buffer hits as tier hits.",
-            f"Keep PROBE_CUFILE_BUF_MIB at one entry or less ({_FAILURE_CATALOG} §13).",
+        why.append(
+            "A pool larger than one entry lets Gate 4 misread GPU-buffer hits as tier hits."
         )
+        fix.append(f"Set PROBE_CUFILE_BUF_MIB to one target entry ({_FAILURE_CATALOG} §13).")
+    oversized = [f"the entry ({entry} MiB)"] if entry > pool.cufile_buf_mib else []
+    if pool.fillers and filler_entry > pool.cufile_buf_mib:
+        oversized.append(f"a filler entry ({filler_entry} MiB)")
+    if oversized:
+        subject = " and ".join(oversized)
+        why.append(
+            f"{subject[0].upper()}{subject[1:]} cannot be staged whole in the pool. No "
+            "recorded run measured that store path, and on the reference backend a transfer "
+            "that does not fit can fail without an error."
+        )
+        fix.append(
+            "Keep every entry within the pool: FILLER_TOKENS no larger than REP_CONTEXT, and "
+            f"PROBE_CUFILE_BUF_MIB at one target entry (scripts/README.md, {_FAILURE_CATALOG} "
+            "§13)."
+        )
+    if why:
+        return CheckResult("T11", title, WARN, sizes, " ".join(why), " ".join(fix))
     return CheckResult("T11", title, PASS, sizes)
 
 

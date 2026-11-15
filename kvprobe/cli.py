@@ -36,6 +36,7 @@ from .tier_check import (
     ARMS,
     DEFAULT_CHUNK_TOKENS,
     DEFAULT_CONTEXT_TOKENS,
+    DEFAULT_FILLER_TOKENS,
     DEFAULT_FILLERS,
     NOT_READY,
     LocalHost,
@@ -465,6 +466,7 @@ def _tier_check(args: argparse.Namespace) -> int:
             context_tokens=args.context_tokens,
             fillers=args.fillers,
             chunk_tokens=args.chunk_tokens,
+            filler_tokens=args.filler_tokens,
         )
     request = TierCheckRequest(
         tier_mount=args.tier_mount,
@@ -1425,6 +1427,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=_non_negative_int,
         default=DEFAULT_FILLERS,
         help=f"distinct filler contexts between measurements (FILLERS; default {DEFAULT_FILLERS})",
+    )
+    tier_parser.add_argument(
+        "--filler-tokens",
+        type=_positive_int,
+        default=DEFAULT_FILLER_TOKENS,
+        help=(
+            f"tokens of each filler context (FILLER_TOKENS; default {DEFAULT_FILLER_TOKENS}, "
+            "the runbook's value; the launchers alone default to 8192)"
+        ),
     )
     tier_parser.add_argument(
         "--chunk-tokens",

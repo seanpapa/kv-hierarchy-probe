@@ -81,7 +81,8 @@ heuristic to classify a possible memory hit. `g3_admission_cost.py` retains a ze
 fallback/store-unattributed outcome, so it lowers realized saving rather than disappearing. These
 rules prevent such rows from supporting a disk-retrieval claim; they do not directly trace each
 request to a particular resident buffer. Before the run, `kvprobe tier-check` (T11) fails a cuFile
-staging pool that holds the whole working set, and warns when it holds more than one entry.
+staging pool that holds the whole working set (the target plus its fillers, each at its own size), and warns
+when it holds more than one entry.
 
 **What you see.** A stable, repeatable speedup that is *better than it should be* — in our case
 roughly 12× against recompute, with a framework retrieve rate around 612 GiB/s. This is a

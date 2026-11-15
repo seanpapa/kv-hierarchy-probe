@@ -815,11 +815,78 @@ class StagingPoolTests(unittest.TestCase):
         self.assertEqual(self._t11(2048, fillers=0)["status"], FAIL)
 
     def test_a_partial_trailing_chunk_counts_as_a_chunk(self) -> None:
-        """4,100 tokens need 17 chunks of 256."""
-        pool = PoolSizes(cufile_buf_mib=1024, mib_per_chunk=64, context_tokens=4100)
+        """4,100 tokens need 17 chunks of 256, one more than the pool holds."""
+        pool = PoolSizes(
+            cufile_buf_mib=1024, mib_per_chunk=64, context_tokens=4100, filler_tokens=4100
+        )
         t11 = _check(run_tier_check(_request(pool=pool), FakeHost()), "T11")
         self.assertIn("entry 1088 MiB", t11["finding"])
-        self.assertEqual(t11["status"], PASS)
+        self.assertEqual(t11["status"], WARN)
+        self.assertIn("The entry (1088 MiB) and a filler entry (1088 MiB)", t11["why"])
+
+    def _sized(self, pool_mib: int, filler_tokens: int, fillers: int = 6) -> dict[str, str]:
+        """Judge a 4,096-token target of 64 MiB chunks with fillers of another size."""
+        pool = PoolSizes(
+            cufile_buf_mib=pool_mib,
+            mib_per_chunk=64,
+            fillers=fillers,
+            filler_tokens=filler_tokens,
+        )
+        return _check(run_tier_check(_request(pool=pool), FakeHost()), "T11")
+
+    def test_the_default_filler_is_the_runbook_size(self) -> None:
+        """Without a filler size, fillers are the runbook's 4,096 tokens."""
+        t11 = self._t11(1024)
+        self.assertIn("filler entry 1024 MiB (4096 tokens)", t11["finding"])
+        self.assertIn("working set 7168 MiB", t11["finding"])
+
+    def test_larger_fillers_grow_the_working_set(self) -> None:
+        """1,024 + 6 × 2,048 MiB: a pool that held the old estimate no longer fails."""
+        t11 = self._sized(7168, filler_tokens=8192)
+        self.assertIn("working set 13312 MiB", t11["finding"])
+        self.assertEqual(t11["status"], WARN)
+        self.assertIn("Gate 4", t11["why"])
+        self.assertNotIn("staged whole", t11["why"])
+        self.assertEqual(self._sized(13312, filler_tokens=8192)["status"], FAIL)
+
+    def test_smaller_fillers_shrink_the_working_set(self) -> None:
+        """1,024 + 6 × 512 MiB = 4,096 MiB: a pool of that size now fails."""
+        t11 = self._sized(4096, filler_tokens=2048)
+        self.assertIn("working set 4096 MiB", t11["finding"])
+        self.assertEqual(t11["status"], FAIL)
+
+    def test_a_filler_larger_than_the_pool_warns(self) -> None:
+        """The runbook pool of one target entry cannot stage an 8,192-token filler."""
+        t11 = self._sized(1024, filler_tokens=8192)
+        self.assertEqual(t11["status"], WARN)
+        self.assertIn("A filler entry (2048 MiB) cannot be staged whole", t11["why"])
+        self.assertNotIn("Gate 4", t11["why"])
+        self.assertIn("FILLER_TOKENS no larger than REP_CONTEXT", t11["fix"])
+
+    def test_both_warnings_are_reported_together(self) -> None:
+        """A pool above one target entry but below one filler entry gives both reasons."""
+        t11 = self._sized(1536, filler_tokens=8192)
+        self.assertEqual(t11["status"], WARN)
+        self.assertIn("Gate 4", t11["why"])
+        self.assertIn("A filler entry (2048 MiB)", t11["why"])
+        self.assertIn("Set PROBE_CUFILE_BUF_MIB to one target entry", t11["fix"])
+        self.assertIn("FILLER_TOKENS", t11["fix"])
+
+    def test_a_target_larger_than_the_pool_warns(self) -> None:
+        """Fillers that fit do not hide a target entry that does not."""
+        t11 = self._sized(512, filler_tokens=2048)
+        self.assertEqual(t11["status"], WARN)
+        self.assertIn("The entry (1024 MiB) cannot be staged whole", t11["why"])
+        self.assertNotIn("filler entry (", t11["why"])
+
+    def test_filler_size_is_ignored_without_fillers(self) -> None:
+        """No fillers: only the target entry counts, however large a filler would be."""
+        self.assertEqual(self._sized(1024, filler_tokens=8192, fillers=0)["status"], FAIL)
+        t11 = self._sized(512, filler_tokens=8192, fillers=0)
+        self.assertIn("working set 1024 MiB", t11["finding"])
+        self.assertEqual(t11["status"], WARN)
+        self.assertIn("The entry (1024 MiB) cannot be staged whole", t11["why"])
+        self.assertNotIn("filler entry (", t11["why"])
 
 
 class TierDirectoryTests(unittest.TestCase):
@@ -981,6 +1048,32 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(document["tier_check_version"], "0.1.0")
         self.assertEqual(_check(document, "T11")["status"], PASS)
         self.assertIn("Overall: READY", err)
+
+    def test_filler_tokens_reach_the_pool_check(self) -> None:
+        """--filler-tokens sizes the fillers in T11."""
+        code, out, _ = self._run(
+            [
+                "--json",
+                "--cufile-buf-mib",
+                "1024",
+                "--mib-per-chunk",
+                "64",
+                "--filler-tokens",
+                "8192",
+            ],
+            FakeHost(),
+        )
+        self.assertEqual(code, 0)
+        t11 = _check(json.loads(out), "T11")
+        self.assertEqual(t11["status"], WARN)
+        self.assertIn("filler entry 2048 MiB (8192 tokens)", t11["finding"])
+
+    def test_filler_tokens_must_be_positive(self) -> None:
+        """Zero filler tokens is a usage error."""
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                self._run(["--filler-tokens", "0"], FakeHost())
+        self.assertEqual(raised.exception.code, 2)
 
     def test_gdscheck_comes_from_the_environment_before_the_search(self) -> None:
         """GDSCHECK set by the runbook is the one run."""

@@ -59,8 +59,9 @@ Pulling from `nvcr.io` is subject to NVIDIA's container terms.
 <!-- runbook:start -->
 
 **1. Environment.** The `:?` entries have no default — set them first.
-`PROBE_CUFILE_BUF_MIB` is the staging pool: keep it at one entry or less, or Gate 4 misreads
-GPU-buffer hits ([FAILURE-CATALOG §13](../docs/FAILURE-CATALOG.md#staging-buffer-full)).
+`PROBE_CUFILE_BUF_MIB` is the staging pool: set it to one entry. A larger pool lets Gate 4 misread
+GPU-buffer hits; a smaller one cannot stage an entry whole
+([FAILURE-CATALOG §13](../docs/FAILURE-CATALOG.md#staging-buffer-full)).
 `PROBE_MIB_PER_CHUNK` is the KV size of a 256-token chunk of *your* model (64 for Qwen2.5-32B,
 see [below](#set-probe_mib_per_chunk-for-the-model-you-are-serving)).
 
@@ -91,7 +92,7 @@ host can observe; `preflight` prints the mount, `gdscheck`, the GPUs and the ima
 ```bash
 (
 set -e
-python3 -m kvprobe tier-check --tier-mount "$GDS_MOUNT" --model-dir "$MODEL_HOST_DIR" --cufile-buf-mib "$PROBE_CUFILE_BUF_MIB" --mib-per-chunk "$PROBE_MIB_PER_CHUNK" --context-tokens "$REP_CONTEXT" --fillers "$FILLERS"
+python3 -m kvprobe tier-check --tier-mount "$GDS_MOUNT" --model-dir "$MODEL_HOST_DIR" --cufile-buf-mib "$PROBE_CUFILE_BUF_MIB" --mib-per-chunk "$PROBE_MIB_PER_CHUNK" --context-tokens "$REP_CONTEXT" --fillers "$FILLERS" --filler-tokens "$FILLER_TOKENS"
 python3 -m kvprobe doctor
 sudo -v
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight
@@ -373,9 +374,10 @@ served from the DRAM tier above the disk moves no device bytes and reads the sam
 not serve, so without eviction the request fails Gate 1 rather than passing it. A run captured before
 the per-device reader records neither field; its Gate 1 reads `UNPROVEN`.
 
-`FILLER_TOKENS` sets the size of each filler request (default 8,192 tokens, the size every recorded run used).
+`FILLER_TOKENS` sets the size of each filler request (launcher default 8,192 tokens; the runbook and the five-gate
+reference run use 4,096 with a one-entry pool).
 Keep one filler within the staging pool: with a small pool, a filler larger than the pool exercises a store path
-the recorded runs never measured. `FILLER_KEY_POLICY` defaults to `unique`, preserving the historical native/static procedure. Set
+the recorded runs never measured. `tier-check` (T11) warns when it does, given `--filler-tokens`. `FILLER_KEY_POLICY` defaults to `unique`, preserving the historical native/static procedure. Set
 it to `reuse` for every arm in a static/dynamic matrix: dynamic FILE has no bounded slot eviction,
 so unique filler keys would grow the backing directory on every sample. The raw run records the
 policy and the matched comparator rejects a mismatch.
