@@ -31,6 +31,14 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   schemas to the same answer for every version-specific field. Documents that match their declared
   version are judged as before.
 
+### Changed
+
+- [FAILURE-CATALOG](docs/FAILURE-CATALOG.md#staging-buffer-full) §13 records the source-supported
+  explanation and controlled CPU-cache-on/off comparison for staging-pool space held after a GDS
+  load. The ROADMAP item that asked for the cause is closed. This documentation-only change does not
+  alter the Gate 3 or Gate 4 pass conditions; reviewing whether those conditions remain sufficient
+  is retained as the next ROADMAP item.
+
 ### Data contracts
 
 - **Changed, compatible:** the evidence schema (an optional pair of Gate 4 counts), the ingest

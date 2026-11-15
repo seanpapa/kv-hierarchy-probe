@@ -14,9 +14,13 @@ names and internal paths.
 
 ## Next
 
-**GDS backend: find out why staging-pool space is held after a completed load.** The problem and
-when it closes are described under
-[known limitations](#gds-backend-staging-pool-space-appears-to-be-held-after-a-completed-load).
+**Review the Gate 3 and Gate 4 pass conditions against the LMCache v0.4.1 staging-pool mechanism.**
+Confirm whether retaining `store_unattributed` and `fallback` attempts is sufficient to prevent a
+false `PASS`, document the effect on existing evidence and verdicts, and record whether an assessment
+version change is required.
+
+- **Closes when:** the review explains why the existing conditions remain sufficient or defines the
+  required contract change, and records the effect on existing evidence and verdicts.
 
 ## Recently completed on main
 
@@ -28,6 +32,7 @@ These changes are implemented on `main` but are not yet included in a tagged rel
 | Gate 1 next steps | A `FAIL` or `UNPROVEN` report names each finding, why it matters and what to check next ([GATE1](GATE1.md#next-steps-in-the-report)) | #18 |
 | Gate 4 fallback kinds | Complete per-request records let the report split fallbacks beyond capacity by earlier observed store writes of the same entry and suggest where to look first ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #19 |
 | Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | #19, #20 |
+| GDS staging-pool cause investigation | Source review and a controlled CPU-cache-on/off comparison support the explanation for pool space held after a completed load ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). This closes the cause-finding item only; Gate 3 and Gate 4 pass-condition review remains under Next | #22 |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit
@@ -35,28 +40,18 @@ device. A Gate 3 `fallback` remains unsplit, as a documented limit
 
 ## Known limitations in the verified path
 
-### GDS backend: staging-pool space appears to be held after a completed load
-
-[FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full) documents a full cuFile staging pool
-turning stores and retrievals into quiet no-ops on LMCache's GDS backend. In the runs behind that
-entry, failures followed a load that succeeded: a completed load appears to keep its pool space for a
-while, so the next transfer is the one that fails. A larger pool moved the limit without removing it.
-
-- **Not known:** why the space is held after a load, and what releases it.
-- **Closes when:** a debug-level run shows the allocation failures next to the transfer that preceded
-  them, and §13 states the mechanism. The Gate 3 and Gate 4 pass conditions are then reviewed against it.
-
 ### Gate 4: the one-entry staging rule conflicts with backends that need headroom
 
 Gate 4 needs a staging buffer no larger than one entry; otherwise a hit served from the GPU-resident
 buffer reads zero device bytes and is misclassified as an upper-tier hit. The GDS backend in
 [FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full) needs headroom above one entry to move
-entries reliably. Until this is resolved, record both the pool size and the entry size and read the
-Gate 4 counts, not only the crossover.
+entries reliably, consistent with the source-supported retention mechanism documented there. Until
+this is resolved, record both the pool size and the entry size and read the Gate 4 counts, not only
+the crossover.
 
 - **Open question:** a way to classify GPU-buffer hits that does not depend on a one-entry pool.
 - **Closes when:** a method is proposed, tested on synthetic cases, and either adopted with a hardware
-  check or rejected with the reason written down. The staging-pool item above may change the answer.
+  check or rejected with the reason written down.
 
 ## Beyond the verified scope
 
