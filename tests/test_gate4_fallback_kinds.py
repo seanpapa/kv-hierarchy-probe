@@ -212,6 +212,35 @@ class IngestSplit(unittest.TestCase):
             self.assertNotIn("fallback_store_write_observed", block[name])
             self.assertNotIn("fallback_store_write_not_observed", block[name])
 
+    def test_a_missing_store_record_is_refused_not_read_as_no_write(self) -> None:
+        """An entry with no record is not "write not observed": ingest refuses."""
+        run = _run(_row([0, 0, 0], [("fallback", 0), ("fallback", 0), ("dram", 0)]))
+        run["rows"][0]["stores"][1]["entry"] = 0
+        with self.assertRaisesRegex(IngestError, "stores must record entries 0 to 2"):
+            build_capacity(run, UPPER_TIER_BYTES)
+
+    def test_numbers_that_cannot_be_compared_are_refused(self) -> None:
+        """A non-finite write or entry size would steer the direction either way."""
+        for value in (float("inf"), float("nan"), float("-inf")):
+            for place in ("store", "retrieval", "per_entry_mib", "resident_mib"):
+                with self.subTest(value=value, place=place):
+                    run = _written_then_refreshed()
+                    if place == "store":
+                        run["rows"][0]["stores"][0]["write_mib"] = value
+                    elif place == "retrieval":
+                        run["rows"][0]["retrievals"][0]["write_mib"] = value
+                    elif place == "per_entry_mib":
+                        run["per_entry_mib"] = value
+                    else:
+                        run["rows"][0]["resident_mib"] = value
+                    with self.assertRaises(IngestError):
+                        build_capacity(run, UPPER_TIER_BYTES)
+
+    def test_a_null_reading_stays_unavailable(self) -> None:
+        """A record that exists with a null write is not refused."""
+        run = _run(_row([None, 0, 0], [("fallback", 0), ("dram", 0), ("dram", 0)]))
+        self.assertEqual(_beyond(build_capacity(run, UPPER_TIER_BYTES))["fallback"], 1)
+
     def test_an_unavailable_reading_after_an_observed_write_still_splits(self) -> None:
         run = _run(
             _row([FULL, 0], [("dram", 0), ("dram", 0)]),
@@ -259,6 +288,30 @@ class IngestSplit(unittest.TestCase):
         def entry_not_integer(run: dict[str, Any]) -> None:
             run["rows"][0]["stores"][0]["entry"] = "0"
 
+        def store_record_missing_one_entry(run: dict[str, Any]) -> None:
+            """Stores [0, 0, 2]: entry 1 has no store record in that row."""
+            run["rows"][1]["stores"][1]["entry"] = 0
+
+        def store_record_dropped(run: dict[str, Any]) -> None:
+            run["rows"][1]["stores"].pop(1)
+
+        def store_record_outside_the_working_set(run: dict[str, Any]) -> None:
+            run["rows"][1]["stores"][2]["entry"] = 3
+
+        def extra_store_record(run: dict[str, Any]) -> None:
+            run["rows"][1]["stores"].append(
+                {"entry": 3, "write_mib": FULL, "ttft_s": 0.1}
+            )
+
+        def retrieval_outside_the_working_set(run: dict[str, Any]) -> None:
+            run["rows"][1]["retrievals"][2]["entry"] = 3
+
+        def store_record_twice(run: dict[str, Any]) -> None:
+            """Every entry is present, but entry 0 has two store records."""
+            run["rows"][1]["stores"].append(
+                {"entry": 0, "write_mib": FULL, "ttft_s": 0.1}
+            )
+
         for change in (
             some_rows_only,
             stores_without_retrievals,
@@ -270,6 +323,12 @@ class IngestSplit(unittest.TestCase):
             negative_write,
             write_missing,
             entry_not_integer,
+            store_record_missing_one_entry,
+            store_record_dropped,
+            store_record_outside_the_working_set,
+            extra_store_record,
+            retrieval_outside_the_working_set,
+            store_record_twice,
         ):
             with self.subTest(change=change.__name__):
                 run = _written_then_refreshed()
@@ -407,6 +466,20 @@ class ReportDirection(unittest.TestCase):
                 change(block)
                 with self.assertRaises(EvidenceError):
                     assess_evidence(_document(block))
+
+    def test_the_split_belongs_to_its_version_only(self) -> None:
+        """An earlier version that carries the split is refused, as its schema does."""
+        split = _capacity(_counts(4, 2, 0, observed=2))
+        for version in ("0.3.0", "0.3.1"):
+            with self.subTest(version=version):
+                document = _document(split)
+                document["schema_version"] = version
+                with self.assertRaisesRegex(EvidenceError, "requires schema_version 0.3.2"):
+                    assess_evidence(document)
+                plain = _document(_capacity(_counts(4, 2, 0)))
+                plain["schema_version"] = version
+                self.assertEqual(_gate4(plain)["status"], "PASS")
+        self.assertEqual(_gate4(_document(split))["status"], "PASS")
 
     def test_ingested_records_reach_the_result(self) -> None:
         block = build_capacity(_written_then_refreshed(), UPPER_TIER_BYTES)

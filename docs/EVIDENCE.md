@@ -44,7 +44,7 @@ future implementation must test both. See [Measurement profiles and version dire
 |---|---|---|
 | `0.3.0` | Supported | Configuration fingerprints and bindings for every measured section. `runtime.device_id` is required; `gpu_index` is optional. |
 | `0.3.1` | Supported | Adds optional `envelope.request_cacheable_tokens`, the per-request cacheable input size shared by the measured concurrency sweep. Inconsistent recorded input sizes are refused. |
-| `0.3.2` | **Current**; written by `kvprobe ingest` | Adds an optional pair to both Gate 4 count blocks, `fallback_store_write_observed` and `fallback_store_write_not_observed`, which split `fallback` by whether the entry's store write was observed earlier in the sweep. Both or neither; they add up to `fallback`. |
+| `0.3.2` | **Current**; written by `kvprobe ingest` | Adds an optional pair to both Gate 4 count blocks, `fallback_store_write_observed` and `fallback_store_write_not_observed`, which split `fallback` by whether the entry's store write was observed earlier in the sweep. Both or neither; they add up to `fallback`. The report refuses the pair in a document that declares an earlier version. |
 
 Unsupported versions are refused with a message naming `kvprobe ingest`; no configuration or provenance
 is guessed to upgrade an old document. Normalize retained measurement outputs using the appropriate
@@ -93,8 +93,11 @@ it counts as `fallback_store_write_not_observed`. The same row's store is not en
 because the sweep refreshes every entry and a refresh of an entry the tier already holds may write
 nothing. The fallback's own retrieval does not count, because a recompute may store the entry again
 after the load failed. If such a fallback's entry has only unavailable write readings, the split is
-left out and the counts stand alone. Ingest refuses records present in only some rows, records
-without `per_entry_mib`, and records whose classes disagree with the row's counts. The report then
+left out and the counts stand alone. A missing record is not read as "no write": ingest refuses
+records present in only some rows, a row whose `stores` or `retrievals` do not cover entries 0 to
+`working_set - 1` exactly once each, records whose classes disagree with the row's counts, a
+`write_mib` that is not a finite non-negative number or `null`, and a `per_entry_mib` that is not a
+finite positive number. The report then
 names both counts and where to look first: the load path and the staging pool
 ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)) when every fallback followed an
 observed write, the store path when none did, both when mixed. The write counter is host-wide, so an

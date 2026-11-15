@@ -74,6 +74,8 @@ _FALLBACK_SPLIT = (
     "fallback_store_write_observed",
     "fallback_store_write_not_observed",
 )
+#: Evidence versions whose contract includes ``_FALLBACK_SPLIT``.
+_FALLBACK_SPLIT_VERSIONS = frozenset({"0.3.2"})
 _SOURCES = {"target_tier", "upper_tier", "recompute"}
 _GRANULARITIES = {"per_request", "per_batch", "per_run"}
 _CONFIDENCE_LEVELS = {"direct", "corroborating", "heuristic"}
@@ -307,7 +309,10 @@ def _warmup_note(section: dict[str, Any], artifact_ids: set[str]) -> str:
 
 
 def _capacity_classification_counts(
-    section: dict[str, Any], overflow: bool, tier_reached: bool
+    section: dict[str, Any],
+    overflow: bool,
+    tier_reached: bool,
+    schema_version: str,
 ) -> tuple[dict[str, int], dict[str, int]] | None:
     """Validate optional Gate 4 classification totals.
 
@@ -322,6 +327,8 @@ def _capacity_classification_counts(
         section: Normalized capacity evidence.
         overflow: Recorded upper-tier overflow flag.
         tier_reached: Recorded target-tier service flag.
+        schema_version: The document's declared evidence version; only
+            versions in ``_FALLBACK_SPLIT_VERSIONS`` may carry the split.
 
     Returns:
         Overall and beyond-capacity counts, or ``None`` for legacy evidence.
@@ -329,8 +336,8 @@ def _capacity_classification_counts(
 
     Raises:
         EvidenceError: If counts are incomplete, inconsistent, or malformed,
-            or the fallback split is partial or does not add up to
-            ``fallback``.
+            or the fallback split is partial, does not add up to
+            ``fallback``, or appears in a version that does not define it.
     """
     names = ("classification_counts", "overflow_classification_counts")
     present = [name in section for name in names]
@@ -354,6 +361,11 @@ def _capacity_classification_counts(
     has_split = isinstance(first, dict) and any(
         field in first for field in split_fields
     )
+    if has_split and schema_version not in _FALLBACK_SPLIT_VERSIONS:
+        raise EvidenceError(
+            f"capacity fallback split is not part of evidence {schema_version}; "
+            f"it requires schema_version {', '.join(sorted(_FALLBACK_SPLIT_VERSIONS))}"
+        )
     expected_fields = fields + split_fields if has_split else fields
     normalized: list[dict[str, int]] = []
     for name in names:
@@ -975,7 +987,9 @@ def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
     if capacity_supported:
         overflow = capacity.get("upper_tier_overflow_observed") is True
         tier_reached = capacity.get("target_tier_served") is True
-        capacity_counts = _capacity_classification_counts(capacity, overflow, tier_reached)
+        capacity_counts = _capacity_classification_counts(
+            capacity, overflow, tier_reached, str(payload.get("schema_version"))
+        )
         if overflow and not tier_reached:
             direction = (
                 _fallback_direction(capacity_counts[1])

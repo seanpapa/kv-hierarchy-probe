@@ -474,15 +474,23 @@ def _record_write_mib(record: dict[str, Any], where: str) -> float | None:
         The host-wide write MiB observed during the request, or None.
 
     Raises:
-        IngestError: If ``write_mib`` is missing, negative, or not a number.
+        IngestError: If ``write_mib`` is missing, negative, not finite, or
+            not a number.
     """
     if "write_mib" not in record:
         raise IngestError(f"{where} has no write_mib")
     value = record["write_mib"]
     if value is None:
         return None
-    if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
-        raise IngestError(f"{where}.write_mib must be a non-negative number or null")
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+        or value < 0
+    ):
+        raise IngestError(
+            f"{where}.write_mib must be a finite non-negative number or null"
+        )
     return float(value)
 
 
@@ -536,7 +544,9 @@ def _fallback_store_writes(
 
     Raises:
         IngestError: If only some rows keep records, ``per_entry_mib`` is
-            missing, or a row's records disagree with its counts.
+            missing or not a finite positive number, a row's records do not
+            cover its working set's entries exactly once in both stores and
+            retrievals, or they disagree with its counts.
     """
     with_records = ["stores" in row or "retrievals" in row for row in rows]
     if not any(with_records):
@@ -550,10 +560,11 @@ def _fallback_store_writes(
     if (
         not isinstance(per_entry_mib, (int, float))
         or isinstance(per_entry_mib, bool)
+        or not math.isfinite(per_entry_mib)
         or per_entry_mib <= 0
     ):
         raise IngestError(
-            "capacity per-request records need a positive per_entry_mib"
+            "capacity per-request records need a finite positive per_entry_mib"
         )
     threshold = float(per_entry_mib) * _WRITE_OBSERVED_FRACTION
 
@@ -577,20 +588,32 @@ def _fallback_store_writes(
             raise IngestError(
                 f"capacity row {index} stores and retrievals must be lists"
             )
+        # The sweep stores (or refreshes) entries 0 .. working_set-1, then
+        # retrieves each of them once. A missing record would read as "no
+        # write observed" for that entry, so both lists must cover exactly
+        # those entries.
+        working_set = row["working_set"]
+        expected_entries = list(range(working_set))
+        for name, records in (("stores", stores), ("retrievals", retrievals)):
+            entries = sorted(
+                _record_entry(record, f"capacity row {index} {name}[{position}]")
+                for position, record in enumerate(records)
+            )
+            if entries != expected_entries:
+                raise IngestError(
+                    f"capacity row {index} {name} must record entries 0 to "
+                    f"{working_set - 1} once each for working_set={working_set}"
+                )
         for position, record in enumerate(stores):
             where = f"capacity row {index} stores[{position}]"
             entry = _record_entry(record, where)
             note(entry, _record_write_mib(record, where))
         kinds = dict.fromkeys(_RETRIEVAL_KINDS, 0)
-        seen: set[int] = set()
         observed = 0
         not_observed = 0
         for position, record in enumerate(retrievals):
             where = f"capacity row {index} retrievals[{position}]"
             entry = _record_entry(record, where)
-            if entry in seen:
-                raise IngestError(f"{where} retrieves entry {entry} twice")
-            seen.add(entry)
             kind = record.get("kind")
             if kind not in _RETRIEVAL_KINDS:
                 raise IngestError(
@@ -681,6 +704,7 @@ def build_capacity(
         if (
             not isinstance(resident_mib, (int, float))
             or isinstance(resident_mib, bool)
+            or not math.isfinite(resident_mib)
             or resident_mib <= 0
         ):
             raise IngestError(f"capacity row {index} has invalid resident_mib")
