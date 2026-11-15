@@ -363,7 +363,8 @@ not change any verdict.
 *Checks:* `g3_admission_cost.py` retains a store with no observed device write and includes its
 later reuse latency in realized saving; `g4_capacity_sweep.py` classifies a zero-read,
 recompute-slow retrieval as `fallback`, keeps per-request store-write and retrieval-read records, and
-the Gate 4 result states the beyond-capacity counts. Nothing in the engine's INFO log flags it.
+the Gate 4 result states the beyond-capacity counts and, from those records, how many fallbacks
+followed an observed store write of the same entry. Nothing in the engine's INFO log flags it.
 
 **What you see.** The engine logs every store as complete — `Stored N out of N tokens` — at
 plausible throughput. Some of those stores leave no write on the device. Later, an entry the tier
@@ -395,7 +396,7 @@ limit by one entry without removing it, so a long enough scan of overflowing ent
 - Look for the "in the storage, but it can't be retrieved" line next to zero-token retrievals.
 - Read the producers' per-request records — Gate 3 `attempts`, Gate 4 `stores` and `retrievals` —
   to tell a store with no observed write from one whose write activity was observed but whose
-  retrieval was not established. The write counters are host-wide, so observed write activity alone
+  retrieval was not established. For Gate 4 the report does this per entry and names the counts. The write counters are host-wide, so observed write activity alone
   does not prove that the entry reached the target device. Note which transfer came just before each
   failure.
 - Run once at debug log level: the allocation failures appear there and nowhere else.

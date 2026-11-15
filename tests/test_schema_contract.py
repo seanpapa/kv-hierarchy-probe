@@ -89,7 +89,7 @@ class SchemaContractTest(unittest.TestCase):
             with self.subTest(example=path.name, schema_version=version):
                 self.assertIn(
                     version,
-                    {"0.3.0", "0.3.1"},
+                    {"0.3.0", "0.3.1", "0.3.2"},
                     "example declares a schema version with no schema document",
                 )
                 if version not in validators:

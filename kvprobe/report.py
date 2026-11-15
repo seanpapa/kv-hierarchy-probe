@@ -68,6 +68,14 @@ _GATE_NAMES = (
     "Capacity justification",
     "Operating envelope",
 )
+#: Optional Gate 4 split of ``fallback`` by whether the entry's store write was
+#: observed earlier in the sweep; both keys or neither.
+_FALLBACK_SPLIT = (
+    "fallback_store_write_observed",
+    "fallback_store_write_not_observed",
+)
+#: Evidence versions whose contract includes ``_FALLBACK_SPLIT``.
+_FALLBACK_SPLIT_VERSIONS = frozenset({"0.3.2"})
 _SOURCES = {"target_tier", "upper_tier", "recompute"}
 _GRANULARITIES = {"per_request", "per_batch", "per_run"}
 _CONFIDENCE_LEVELS = {"direct", "corroborating", "heuristic"}
@@ -84,7 +92,11 @@ _PASSING_CONFIDENCE = {"direct", "corroborating"}
 #: no longer says the producer's records show whether a Gate 4 store or load
 #: failed: they can separate no observed write from write activity without an
 #: established retrieval, which does not place the entry on the target device.
-ASSESSMENT_VERSION = "0.6.2"
+#: 0.6.3 reads that split when the evidence carries it: a Gate 4 result or
+#: FAIL reason with fallbacks beyond capacity states how many followed an
+#: observed store write of the same entry and where to look first. Verdicts
+#: are unchanged.
+ASSESSMENT_VERSION = "0.6.3"
 _GATE_STATUSES = {"PASS", "FAIL", "UNPROVEN", "SKIP_UNSUPPORTED", "INVALID"}
 _FATAL_SCOPES = {"measurement"}
 
@@ -297,25 +309,35 @@ def _warmup_note(section: dict[str, Any], artifact_ids: set[str]) -> str:
 
 
 def _capacity_classification_counts(
-    section: dict[str, Any], overflow: bool, tier_reached: bool
+    section: dict[str, Any],
+    overflow: bool,
+    tier_reached: bool,
+    schema_version: str,
 ) -> tuple[dict[str, int], dict[str, int]] | None:
     """Validate optional Gate 4 classification totals.
 
     Evidence written before the current ingest correction carries only the two
     Gate 4 booleans. New evidence also retains enough counts to prove that every
     retrieval was classified and that the booleans describe the rows beyond the
-    declared upper-tier capacity.
+    declared upper-tier capacity. When the producer kept per-request records,
+    both blocks also split ``fallback`` into ``fallback_store_write_observed``
+    and ``fallback_store_write_not_observed``.
 
     Args:
         section: Normalized capacity evidence.
         overflow: Recorded upper-tier overflow flag.
         tier_reached: Recorded target-tier service flag.
+        schema_version: The document's declared evidence version; only
+            versions in ``_FALLBACK_SPLIT_VERSIONS`` may carry the split.
 
     Returns:
         Overall and beyond-capacity counts, or ``None`` for legacy evidence.
+        The split keys appear in both only when the evidence carries them.
 
     Raises:
-        EvidenceError: If counts are incomplete, inconsistent, or malformed.
+        EvidenceError: If counts are incomplete, inconsistent, or malformed,
+            or the fallback split is partial, does not add up to
+            ``fallback``, or appears in a version that does not define it.
     """
     names = ("classification_counts", "overflow_classification_counts")
     present = [name in section for name in names]
@@ -334,16 +356,27 @@ def _capacity_classification_counts(
         "fallback",
         "miss",
     )
+    split_fields = _FALLBACK_SPLIT
+    first = section.get(names[0])
+    has_split = isinstance(first, dict) and any(
+        field in first for field in split_fields
+    )
+    if has_split and schema_version not in _FALLBACK_SPLIT_VERSIONS:
+        raise EvidenceError(
+            f"capacity fallback split is not part of evidence {schema_version}; "
+            f"it requires schema_version {', '.join(sorted(_FALLBACK_SPLIT_VERSIONS))}"
+        )
+    expected_fields = fields + split_fields if has_split else fields
     normalized: list[dict[str, int]] = []
     for name in names:
         value = section.get(name)
-        if not isinstance(value, dict) or set(value) != set(fields):
-            detail = ", ".join(fields)
+        if not isinstance(value, dict) or set(value) != set(expected_fields):
+            detail = ", ".join(expected_fields)
             raise EvidenceError(
                 f"capacity.{name} must contain exactly {detail}"
             )
         counts: dict[str, int] = {}
-        for field in fields:
+        for field in expected_fields:
             count = value.get(field)
             if (
                 not isinstance(count, int)
@@ -360,10 +393,16 @@ def _capacity_classification_counts(
                 f"capacity.{name} classified {classified} retrievals but expected "
                 f"{counts['retrievals_expected']}"
             )
+        if has_split and sum(counts[field] for field in split_fields) != (
+            counts["fallback"]
+        ):
+            raise EvidenceError(
+                f"capacity.{name} fallback split does not add up to fallback"
+            )
         normalized.append(counts)
 
     totals, beyond = normalized
-    for field in fields:
+    for field in expected_fields:
         if beyond[field] > totals[field]:
             raise EvidenceError(
                 f"capacity overflow count {field} exceeds the sweep total"
@@ -948,13 +987,20 @@ def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
     if capacity_supported:
         overflow = capacity.get("upper_tier_overflow_observed") is True
         tier_reached = capacity.get("target_tier_served") is True
-        capacity_counts = _capacity_classification_counts(capacity, overflow, tier_reached)
+        capacity_counts = _capacity_classification_counts(
+            capacity, overflow, tier_reached, str(payload.get("schema_version"))
+        )
         if overflow and not tier_reached:
+            direction = (
+                _fallback_direction(capacity_counts[1])
+                if capacity_counts is not None
+                else ""
+            )
             gate4 = _gate_v0_2(
                 4,
                 "FAIL",
                 "the upper tier overflowed but no retrieval was served by the "
-                "target tier",
+                "target tier" + (f" — {direction}" if direction else ""),
             )
         else:
             gate4 = _gate_v0_2(
@@ -1242,6 +1288,62 @@ def _admission_samples_note(admission: dict[str, Any]) -> str:
     return note
 
 
+def _fallback_direction(beyond: dict[str, int]) -> str:
+    """Say where to look first for the fallbacks beyond the upper tier's capacity.
+
+    Args:
+        beyond: Beyond-capacity classification counts.
+
+    Returns:
+        A clause naming how many fallbacks followed an observed store write of
+        the same entry and which path to check first, or an empty string when
+        the counts carry no fallback split or no fallback beyond capacity.
+    """
+    if _FALLBACK_SPLIT[0] not in beyond or beyond["fallback"] == 0:
+        return ""
+    fallbacks = beyond["fallback"]
+    observed = beyond["fallback_store_write_observed"]
+    missing = beyond["fallback_store_write_not_observed"]
+    load_path = (
+        "the load path and the staging pool "
+        "(docs/FAILURE-CATALOG.md#staging-buffer-full)"
+    )
+    if missing == 0:
+        subject = (
+            "the fallback" if observed == 1 else f"all {observed} fallbacks"
+        )
+        found = (
+            f"{subject} followed an observed store write of the same entry "
+            f"earlier in the sweep, so look first at {load_path}"
+        )
+    elif observed == 0:
+        subject = (
+            "the fallback did not" if missing == 1
+            else f"none of the {missing} fallbacks"
+        )
+        found = (
+            f"{subject} follow{'' if missing == 1 else 'ed'} an observed store "
+            "write of the same entry, so look first at the store path"
+        )
+    else:
+        found = (
+            f"{observed} of the {fallbacks} fallbacks followed an observed store "
+            f"write of the same entry earlier in the sweep and {missing} did not, "
+            f"so check both {load_path} and the store path"
+        )
+    misses = beyond["miss"]
+    note = ""
+    if misses:
+        note = (
+            "; the miss is not split this way" if misses == 1
+            else f"; the {misses} misses are not split this way"
+        )
+    return (
+        f"{found}{note}; the write counter is host-wide, so an observed write "
+        "does not show that an entry reached the target device"
+    )
+
+
 def _capacity_result(
     overflow: bool, counts: tuple[dict[str, int], dict[str, int]] | None
 ) -> str:
@@ -1274,6 +1376,14 @@ def _capacity_result(
             f"the upper tier overflowed and the target tier served the overflow "
             f"({served} of {total} retrievals beyond its capacity; the rest stayed in "
             "the upper tier): the tier is needed beyond the upper tier's capacity"
+        )
+    direction = _fallback_direction(beyond)
+    if direction:
+        return (
+            f"the upper tier overflowed, but beyond its capacity the target tier "
+            f"served only {served} of {total} retrievals and {lost} fell back to "
+            "recompute or missed: the tier is needed there but did not serve what "
+            f"overflowed — {direction}"
         )
     return (
         f"the upper tier overflowed, but beyond its capacity the target tier served "
@@ -1590,13 +1700,13 @@ def assess_evidence(payload: Any) -> dict[str, Any]:
     if schema_version in {"0.1.0", "0.2.0"}:
         raise EvidenceError(
             f"unsupported evidence schema_version {schema_version}; re-normalize the "
-            "measurement run with 'kvprobe ingest' to produce 0.3.1 "
+            "measurement run with 'kvprobe ingest' to produce 0.3.2 "
             "(see docs/EVIDENCE.md)"
         )
-    if schema_version in {"0.3.0", "0.3.1"}:
+    if schema_version in {"0.3.0", "0.3.1", "0.3.2"}:
         return _assess_v0_3(payload)
     raise EvidenceError(
-        "schema_version must be '0.3.0' or '0.3.1'; "
+        "schema_version must be '0.3.0', '0.3.1' or '0.3.2'; "
         "normalize runs with 'kvprobe ingest'"
     )
 

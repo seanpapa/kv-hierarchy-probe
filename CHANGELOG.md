@@ -14,6 +14,25 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   to read more ([GATE1](docs/GATE1.md#next-steps-in-the-report)). Violations come first, then
   missing evidence, and every finding that applies is listed. Verdicts, claim state, exit codes, the
   JSON report and `assessment_version` are unchanged.
+- **Gate 4 fallback kinds.** When the capacity producer kept per-request `stores` and `retrievals`
+  records, ingest splits each `fallback` by whether a store write of the same entry was observed
+  earlier in the sweep, and the Gate 4 result (or `FAIL` reason) names both counts and where to look
+  first: the load path and the staging pool, the store path, or both
+  ([EVIDENCE](docs/EVIDENCE.md#producing-evidence-from-a-run)). The write counter is host-wide, and
+  the result says an observed write does not place the entry on the target device. Evidence without
+  the records keeps the count-only result. Verdicts and claim state are unchanged.
+
+### Data contracts
+
+- **Changed, compatible:** the evidence schema (an optional pair of Gate 4 counts), the ingest
+  adapter and the assessment each move up one PATCH version. The report still reads every earlier
+  supported evidence version. [VERSIONING](docs/VERSIONING.md) lists the numbers.
+
+### Known limits
+
+- A Gate 3 reuse classified as `fallback` may be a recompute or a hit from a tier above. It is not
+  split, and the break-even result does not depend on it
+  ([METHOD, Gate 3](docs/METHOD.md#gate-3--admission-cost)).
 
 ## 0.1.1 — 2026-11-15
 

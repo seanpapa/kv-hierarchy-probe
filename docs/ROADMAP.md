@@ -14,13 +14,16 @@ names and internal paths.
 
 ## Next
 
-**Gates 3 and 4: report the kinds of `fallback` separately.** The problem and when it closes are
-described under [known limitations](#gates-3-and-4-the-kinds-of-fallback-are-reported-together).
+**GDS backend: find out why staging-pool space is held after a completed load.** The problem and
+when it closes are described under
+[known limitations](#gds-backend-staging-pool-space-appears-to-be-held-after-a-completed-load).
 
-The previous entry, Gate 1 output that names the missing evidence, why it matters and what to collect
-next, is done: the text and Markdown reports now end with
-[next steps](GATE1.md#next-steps-in-the-report) when Gate 1 is `FAIL` or `UNPROVEN`, and every
-verdict, claim allowance and exit code is unchanged.
+The previous entry, reporting the kinds of `fallback` separately, is done. When the capacity
+producer kept per-request records, the Gate 4 result names how many fallbacks beyond capacity
+followed an observed store write of the same entry and where to look first
+([METHOD, Gate 4](METHOD.md#gate-4--capacity-crossover)). A Gate 3 `fallback` is not split; that is
+written down as a limit ([METHOD, Gate 3](METHOD.md#gate-3--admission-cost)) because it does not
+change the break-even result. Verdicts are unchanged.
 
 ## Known limitations in the verified path
 
@@ -34,24 +37,6 @@ while, so the next transfer is the one that fails. A larger pool moved the limit
 - **Not known:** why the space is held after a load, and what releases it.
 - **Closes when:** a debug-level run shows the allocation failures next to the transfer that preceded
   them, and §13 states the mechanism. The Gate 3 and Gate 4 pass conditions are then reviewed against it.
-
-### Gates 3 and 4: the kinds of `fallback` are reported together
-
-Both gates classify an outcome that did not come from the target tier as `fallback`. Every attempt stays
-in the calculation, but cases that need different diagnoses share one count.
-
-- **Gate 4:** a `fallback` beyond capacity can follow a store with no observed write, or one with
-  write activity observed but retrieval not established. The producer keeps these observations in
-  per-request `stores` and `retrievals` records, but the report reads only the counts
-  ([METHOD, Gate 4](METHOD.md#gate-4--capacity-crossover)). The write counters are host-wide:
-  observed write activity alone does not prove that the entry reached the target device.
-- **Gate 3:** a reuse attempt classified as `fallback` can be a recompute or a hit served by an upper
-  tier. Neither receives positive saving credit, so the break-even result does not change
-  ([METHOD, Gate 3](METHOD.md#gate-3--admission-cost)).
-- **Closes when:** the Gate 4 report distinguishes "no observed store write" from "store write
-  observed, retrieval not established", retaining the counter's scope and any uncertainty, with tests,
-  an assessment version bump and no change to existing verdicts; and the Gate 3 question is either
-  implemented the same way or written down as a limit.
 
 ### Gate 4: the one-entry staging rule conflicts with backends that need headroom
 

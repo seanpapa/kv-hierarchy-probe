@@ -14,9 +14,10 @@ entry once and classifies each retrieval by per-request ``nvidia-fs`` read bytes
 * ``miss``            — neither: the entry is gone; not counted as a tier hit.
 
 Every store and every retrieval is also kept as a record (entry index, observed
-``nvidia-fs`` write and read MiB, TTFT, class), so a ``fallback`` can be traced to a
-store that wrote nothing or to a load that failed after a write. The records are raw
-evidence; the per-working-set counts are what ``kvprobe ingest`` reads.
+``nvidia-fs`` write and read MiB, TTFT, class). ``kvprobe ingest`` reads the
+per-working-set counts and, from these records, splits each ``fallback`` by whether
+an earlier record of the same entry showed a store write of about one entry. The
+counter is host-wide, so an observed write does not place the entry on the device.
 
 The **capacity crossover** is the smallest working set at which any retrieval is
 served from NVMe. Below it the NVMe tier adds only risk; at and above it the tier
