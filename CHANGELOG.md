@@ -24,7 +24,10 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   not link the paths), while a namespace without a head passes even though `nvme_core`
   `multipath` defaults to `Y`. The runbook stops its preflight block on a nonzero
   exit. An unreadable required transport blocks readiness even if another path is known to
-  be remote; the result retains both the remote finding and the missing information.
+  be remote; the result retains both the remote finding and the missing information. The staging-pool
+  check sizes the working set as the target entry plus each filler at its own size
+  (`--filler-tokens`, default 4096 as in the runbook), and warns when the target or a filler entry is
+  larger than the pool, a store path no recorded run measured.
 - **[TIER-CHECK](docs/TIER-CHECK.md)**, the reference for `tier-check`: what each check (T1–T12)
   reads and decides, the statuses, the overall result, the exit codes and how native NVMe
   multipath is judged. A test keeps its table in step with the titles the command prints and

@@ -77,25 +77,33 @@ return a required `SKIP` naming T1. No other check depends on another's result.
 | T8 | cuFile compat settings disabled | `gdscheck -p`, found from `--gdscheck`, then `$GDSCHECK`, then the same search `doctor` uses | Reads `use_compat_mode` and `force_compat_mode`. Either `true` → **FAIL**. Both `false` → **PASS**. `gdscheck` not found, a nonzero exit (including the timeout) or either value missing → required **SKIP**. The `NVMe` support line is added to the finding. `posix` arm → optional **SKIP** | Measuring compat, which speed cannot tell apart from native. Passing does not prove a native transfer; that still needs the run's evidence | [FAILURE-CATALOG §3](FAILURE-CATALOG.md#3-native-and-compat-are-indistinguishable-by-speed-principle) |
 | T9 | nvidia-fs loaded and counting | `/proc/driver/nvidia-fs/stats`, `/dev/nvidia-fs*`, `/sys/module/nvidia_fs/parameters/{rw_stats_enabled,dbg_enabled}` | Stats file or devices absent → **FAIL**. `rw_stats_enabled` not `1`/`Y` → **FAIL**, with the command that turns it on. `dbg_enabled` not `0`/`N` → **WARN** (debug logging depresses throughput). Either parameter unreadable → required **SKIP**. Otherwise → **PASS**. `posix` arm → optional **SKIP** | Attribution that silently reports nothing; a performance run with debug logging on | [host preconditions 3 and 7](../scripts/README.md#preconditions-on-the-host); [FAILURE-CATALOG §9](FAILURE-CATALOG.md#9-measurement-plumbing-that-quietly-changes-what-you-measure-principle) |
 | T10 | Container prerequisites for cuFile | `/run/udev` is a directory; `/etc/cufile.json` is readable | Either missing → **FAIL**. Otherwise → **PASS**. `posix` arm → optional **SKIP** | `cuFileHandleRegister` error 5008, inside the container only | [FAILURE-CATALOG §5](FAILURE-CATALOG.md#5-the-same-error-inside-a-container-has-a-different-cause-stack); [host precondition 3](../scripts/README.md#preconditions-on-the-host) |
-| T11 | Staging pool below the working set | `--cufile-buf-mib` and `--mib-per-chunk`, given together; `--context-tokens` (default 4096), `--fillers` (6), `--chunk-tokens` (256) | Entry = `mib_per_chunk × ⌈context / chunk⌉`. Working set = `(1 + fillers) × entry`. Pool ≥ working set → **FAIL**. Entry < pool < working set → **WARN**. Pool ≤ entry → **PASS**. Sizes not given, or `posix` arm → optional **SKIP** | A GPU-resident "tier" that never touches the device; Gate 4 misreading staging-pool hits | [FAILURE-CATALOG §2](FAILURE-CATALOG.md#2-the-phantom-tier--a-run-that-never-touched-the-device-principle) and [§13](FAILURE-CATALOG.md#staging-buffer-full); [host precondition 4](../scripts/README.md#preconditions-on-the-host) |
+| T11 | Staging pool below the working set | `--cufile-buf-mib` and `--mib-per-chunk`, given together; `--context-tokens` (default 4096), `--fillers` (6), `--filler-tokens` (4096), `--chunk-tokens` (256) | Entry = `mib_per_chunk × ⌈context / chunk⌉`; filler entry likewise from `--filler-tokens`. Working set = entry + `fillers` × filler entry. Pool ≥ working set → **FAIL**. Otherwise **WARN** when the pool is larger than one entry, or when the entry or (with fillers) a filler entry is larger than the pool; both reasons are given when both apply. Otherwise → **PASS**. Sizes not given, or `posix` arm → optional **SKIP** | A GPU-resident "tier" that never touches the device; Gate 4 misreading staging-pool hits | [FAILURE-CATALOG §2](FAILURE-CATALOG.md#2-the-phantom-tier--a-run-that-never-touched-the-device-principle) and [§13](FAILURE-CATALOG.md#staging-buffer-full); [host precondition 4](../scripts/README.md#preconditions-on-the-host) |
 | T12 | Tier directory is empty | A listing of `--tier-dir` | Directory does not exist yet → **PASS**. Entries other than `lost+found` → **FAIL** with the count. Not listable → required **SKIP**. `--tier-dir` not given → optional **SKIP** | Chunks left by an earlier run served as cache hits | [host precondition 5](../scripts/README.md#preconditions-on-the-host) |
 
 **What T11 calculates, and what it does not show.** Fillers exist to push the target out of the staging
 pool so that the target's next use must reach the device
 ([PROMPT-CONSTRUCTION §4](PROMPT-CONSTRUCTION.md#4-filler-pressure-unique-versus-reuse)); the fillers
-themselves need not be evicted. T11's working set is the target entry plus one entry per filler. If the
+themselves need not be evicted. T11's working set is the target entry plus one filler entry per filler,
+each sized from its own token count. If the
 pool can hold all of them, the fillers cannot displace the target, and its next use can be served from
 GPU memory without touching the device: the phantom tier
 ([FAILURE-CATALOG §2](FAILURE-CATALOG.md#2-the-phantom-tier--a-run-that-never-touched-the-device-principle)).
 That case fails. A pool larger than one entry but smaller than the working set warns, because Gate 4
-needs the pool to hold at most one entry to classify hits.
+needs the pool to hold at most one entry to classify hits. An entry larger than the pool, target or
+filler, also warns: it cannot be staged whole, the recorded runs never measured that store path, and on
+the reference backend a transfer that does not fit can fail without an error
+([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). Together the two warnings pass only
+a pool of exactly one target entry with fillers no larger than the target, the setting of the runbook
+and of the five-gate reference run. §13 explains why even that setting can drop a transfer; the run's records show whether it
+did.
 
 This is a capacity calculation on the sizes you pass, not evidence of device access. A pool smaller than
 the working set makes displacement possible; whether the target was displaced depends on the eviction
 behaviour and the filler policy (a repeated filler can be a hit that applies no pressure). The
-calculation also counts each filler as one entry of `--context-tokens`; fillers of another size change
-the real working set. Only the run's read bytes on the tier's device, per request, show that a retrieval
-reached the device ([Gate 1](GATE1.md)).
+calculation is only as right as the sizes passed: `--filler-tokens` defaults to the runbook's 4096,
+while the launchers alone default `FILLER_TOKENS` to 8192, so pass the value the run uses. Only the
+run's read bytes on the tier's device, per request, show that a retrieval reached the device
+([Gate 1](GATE1.md)).
 
 **Why T12 is optional.** The reference launchers clear their own directories before each arm. The check
 matters for a launcher that does not.
@@ -134,12 +142,13 @@ validated by the schema in [`schemas/`](../schemas/); its version is in
 ```text
 python3 -m kvprobe tier-check --tier-mount PATH [--arm gds|posix] [--tier-dir PATH]
     [--model-dir PATH] [--gdscheck PATH]
-    [--cufile-buf-mib N --mib-per-chunk N] [--context-tokens N] [--fillers N] [--chunk-tokens N]
+    [--cufile-buf-mib N --mib-per-chunk N] [--context-tokens N] [--fillers N] [--filler-tokens N]
+    [--chunk-tokens N]
     [--output FILE] [--json]
 ```
 
-`--context-tokens`, `--cufile-buf-mib`, `--mib-per-chunk` and `--chunk-tokens` must be positive
-integers; `--fillers` must be a non-negative integer.
+`--context-tokens`, `--cufile-buf-mib`, `--mib-per-chunk`, `--filler-tokens` and `--chunk-tokens` must be
+positive integers; `--fillers` must be a non-negative integer.
 
 ## 6. Native NVMe multipath (T3 and T4)
 
