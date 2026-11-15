@@ -156,6 +156,40 @@ class SchemaContractTest(unittest.TestCase):
                 # a changed identity is still schema-valid here.
                 self.assertEqual([], list(validator.iter_errors(document)))
 
+    def test_the_reporter_and_the_schema_agree_on_version_specific_fields(self) -> None:
+        """A field added in one evidence version is valid in that version and
+        later ones only; the reporter accepts exactly what each schema does."""
+        # First Party
+        from kvprobe.report import EvidenceError, assess_evidence
+
+        def request_tokens(document: dict) -> None:
+            document["evidence"]["envelope"]["request_cacheable_tokens"] = 2048
+
+        def fallback_split(document: dict) -> None:
+            for name in ("classification_counts", "overflow_classification_counts"):
+                counts = document["evidence"]["capacity"][name]
+                counts["fallback_store_write_observed"] = counts["fallback"]
+                counts["fallback_store_write_not_observed"] = 0
+
+        additions = {request_tokens: "0.3.1", fallback_split: "0.3.2"}
+        versions = ("0.3.0", "0.3.1", "0.3.2")
+        for add, introduced in additions.items():
+            for version in versions:
+                with self.subTest(field=add.__name__, version=version):
+                    document = json.loads(
+                        (EXAMPLES / "evidence" / "pass-v0.3.json").read_text(encoding="utf-8")
+                    )
+                    document["schema_version"] = version
+                    add(document)
+                    schema_valid = not list(_validator(version).iter_errors(document))
+                    try:
+                        assess_evidence(document)
+                        accepted = True
+                    except EvidenceError:
+                        accepted = False
+                    self.assertEqual(schema_valid, versions.index(version) >= versions.index(introduced))
+                    self.assertEqual(accepted, schema_valid)
+
     def test_only_v0_3_1_carries_the_envelope_input_size(self) -> None:
         """The input size is a 0.3.1 addition; 0.3.0 stays closed to it."""
         document = json.loads(

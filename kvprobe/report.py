@@ -76,6 +76,8 @@ _FALLBACK_SPLIT = (
 )
 #: Evidence versions whose contract includes ``_FALLBACK_SPLIT``.
 _FALLBACK_SPLIT_VERSIONS = frozenset({"0.3.2"})
+#: Evidence versions whose contract includes ``envelope.request_cacheable_tokens``.
+_REQUEST_TOKENS_VERSIONS = frozenset({"0.3.1", "0.3.2"})
 _SOURCES = {"target_tier", "upper_tier", "recompute"}
 _GRANULARITIES = {"per_request", "per_batch", "per_run"}
 _CONFIDENCE_LEVELS = {"direct", "corroborating", "heuristic"}
@@ -95,8 +97,9 @@ _PASSING_CONFIDENCE = {"direct", "corroborating"}
 #: 0.6.3 reads that split when the evidence carries it: a Gate 4 result or
 #: FAIL reason with fallbacks beyond capacity states how many followed an
 #: observed store write of the same entry and where to look first. Verdicts
-#: are unchanged.
-ASSESSMENT_VERSION = "0.6.3"
+#: are unchanged. 0.6.4 refuses ``envelope.request_cacheable_tokens`` in a
+#: document that declares a version without it, as that version's schema does.
+ASSESSMENT_VERSION = "0.6.4"
 _GATE_STATUSES = {"PASS", "FAIL", "UNPROVEN", "SKIP_UNSUPPORTED", "INVALID"}
 _FATAL_SCOPES = {"measurement"}
 
@@ -1018,7 +1021,9 @@ def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
     request_tokens: int | None = None
     if envelope_supported:
         normalized_levels = _envelope_levels(envelope)
-        request_tokens = _envelope_request_tokens(envelope)
+        request_tokens = _envelope_request_tokens(
+            envelope, str(payload.get("schema_version"))
+        )
         for level in normalized_levels:
             if level["requests"] > 0 and level["target_tier_served"] == level["requests"]:
                 validated_concurrency = level["concurrency"]
@@ -1149,21 +1154,32 @@ def _envelope_levels(envelope: dict[str, Any]) -> list[dict[str, int]]:
     return sorted(normalized, key=lambda level: level["concurrency"])
 
 
-def _envelope_request_tokens(envelope: dict[str, Any]) -> int | None:
+def _envelope_request_tokens(
+    envelope: dict[str, Any], schema_version: str
+) -> int | None:
     """Return the per-request input size an envelope was measured at.
 
     Args:
         envelope: The ``envelope`` evidence block.
+        schema_version: The document's declared evidence version; only
+            versions in ``_REQUEST_TOKENS_VERSIONS`` may carry the field.
 
     Returns:
-        ``request_cacheable_tokens`` when recorded, else None (evidence older
-        than schema 0.3.1, or a run whose rows did not record it).
+        ``request_cacheable_tokens`` when recorded, else None (a version
+        without the field, or a run whose rows did not record it).
 
     Raises:
-        EvidenceError: If the field is present but not a positive integer.
+        EvidenceError: If the field is present but not a positive integer,
+            or appears in a version that does not define it.
     """
     if "request_cacheable_tokens" not in envelope:
         return None
+    if schema_version not in _REQUEST_TOKENS_VERSIONS:
+        raise EvidenceError(
+            "envelope.request_cacheable_tokens is not part of evidence "
+            f"{schema_version}; it requires schema_version "
+            f"{' or '.join(sorted(_REQUEST_TOKENS_VERSIONS))}"
+        )
     value = envelope["request_cacheable_tokens"]
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise EvidenceError(

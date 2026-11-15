@@ -195,6 +195,7 @@ class GateResultTests(unittest.TestCase):
     def test_envelope_result_names_the_measured_input_size(self) -> None:
         """An envelope holds for its input size, so the result states it."""
         payload = _pass()
+        payload["schema_version"] = "0.3.1"
         payload["evidence"]["envelope"]["request_cacheable_tokens"] = 2048
         gate = _gate(assess_evidence(payload), 5)
         self.assertIn("through concurrency 2 at 2,048 tokens/request", gate["result"])
@@ -207,9 +208,24 @@ class GateResultTests(unittest.TestCase):
         for value in (0, -1, 2048.0, True, "2048"):
             with self.subTest(value=value):
                 payload = _pass()
+                payload["schema_version"] = "0.3.1"
                 payload["evidence"]["envelope"]["request_cacheable_tokens"] = value
-                with self.assertRaisesRegex(EvidenceError, "request_cacheable_tokens"):
+                with self.assertRaisesRegex(
+                    EvidenceError, "request_cacheable_tokens must be a positive integer"
+                ):
                     assess_evidence(payload)
+
+    def test_envelope_input_size_belongs_to_its_version_only(self) -> None:
+        """A 0.3.0 document cannot carry a 0.3.1 field, as its schema says."""
+        payload = _pass()
+        self.assertEqual(payload["schema_version"], "0.3.0")
+        payload["evidence"]["envelope"]["request_cacheable_tokens"] = 2048
+        with self.assertRaisesRegex(EvidenceError, "not part of evidence 0.3.0"):
+            assess_evidence(payload)
+        for version in ("0.3.1", "0.3.2"):
+            with self.subTest(version=version):
+                payload["schema_version"] = version
+                self.assertIn("2,048 tokens/request", _gate(assess_evidence(payload), 5)["result"])
 
     def test_lowest_level_not_served_fails(self) -> None:
         """No fully served level means the sweep never measured the tier."""

@@ -22,11 +22,21 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   the result says an observed write does not place the entry on the target device. Evidence without
   the records keeps the count-only result. Verdicts and claim state are unchanged.
 
+### Fixed
+
+- The report accepted a document whose declared evidence version does not define a field it
+  carries: Gate 5's per-request input size in a document declaring the version before it was
+  added. Its JSON Schema refuses that document, so tools disagreed about the same file. The report
+  now refuses it too, naming the version that defines the field; a test holds the report and the
+  schemas to the same answer for every version-specific field. Documents that match their declared
+  version are judged as before.
+
 ### Data contracts
 
 - **Changed, compatible:** the evidence schema (an optional pair of Gate 4 counts), the ingest
-  adapter and the assessment each move up one PATCH version. The report still reads every earlier
-  supported evidence version. [VERSIONING](docs/VERSIONING.md) lists the numbers.
+  adapter and the assessment each move up one PATCH version, and the assessment one more for the
+  correction under Fixed. The report still reads every earlier supported evidence version.
+  [VERSIONING](docs/VERSIONING.md) lists the numbers.
 
 ### Known limits
 

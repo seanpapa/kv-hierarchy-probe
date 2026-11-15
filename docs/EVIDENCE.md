@@ -43,7 +43,7 @@ future implementation must test both. See [Measurement profiles and version dire
 | Version | Status | Contract |
 |---|---|---|
 | `0.3.0` | Supported | Configuration fingerprints and bindings for every measured section. `runtime.device_id` is required; `gpu_index` is optional. |
-| `0.3.1` | Supported | Adds optional `envelope.request_cacheable_tokens`, the per-request cacheable input size shared by the measured concurrency sweep. Inconsistent recorded input sizes are refused. |
+| `0.3.1` | Supported | Adds optional `envelope.request_cacheable_tokens`, the per-request cacheable input size shared by the measured concurrency sweep. Inconsistent recorded input sizes are refused. The report refuses the field in a document that declares `0.3.0`. |
 | `0.3.2` | **Current**; written by `kvprobe ingest` | Adds an optional pair to both Gate 4 count blocks, `fallback_store_write_observed` and `fallback_store_write_not_observed`, which split `fallback` by whether the entry's store write was observed earlier in the sweep. Both or neither; they add up to `fallback`. The report refuses the pair in a document that declares an earlier version. |
 
 Unsupported versions are refused with a message naming `kvprobe ingest`; no configuration or provenance
