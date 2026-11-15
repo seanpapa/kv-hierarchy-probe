@@ -166,6 +166,59 @@ class Gate1NextStepTests(unittest.TestCase):
         status, steps = _steps(_passing())
         self.assertEqual((status, steps), ("PASS", ()))
 
+    def test_wrong_output_explanation_is_independent_of_source(self) -> None:
+        """An incorrect non-target response fails correctness without blaming KV."""
+        for source in ("upper_tier", "recompute"):
+            for with_target in (False, True):
+                with self.subTest(source=source, with_target=with_target):
+                    payload = _with_request(source=source, correct=False)
+                    if with_target:
+                        target = _passing()["evidence"]["attribution"]["requests"][0]
+                        target["id"] = "target-request"
+                        payload["evidence"]["attribution"]["requests"].append(target)
+                        payload["bindings"]["attribution_requests"].append(
+                            {
+                                "request_id": "target-request",
+                                "configuration_id": "config-a",
+                            }
+                        )
+                    status, steps = _steps(payload)
+                    self.assertEqual(status, "FAIL")
+                    wrong = next(step for step in steps if step.title == WRONG)
+                    total = 2 if with_target else 1
+                    self.assertEqual(
+                        wrong.finding,
+                        f"1/{total} requests returned a wrong answer.",
+                    )
+                    self.assertIn("every recorded request", wrong.why)
+                    self.assertIn("regardless of its source", wrong.why)
+                    self.assertNotIn("wrong KV", wrong.why)
+
+    def test_wrong_output_precedes_missing_target_and_observations(self) -> None:
+        """Measured errors precede all missing evidence even with no target read."""
+        for source in ("upper_tier", "recompute"):
+            for granularity, missing in (
+                ("per_request", HEURISTIC),
+                ("per_batch", NOT_PER_REQUEST),
+            ):
+                with self.subTest(source=source, granularity=granularity):
+                    status, steps = _steps(
+                        _with_request(
+                            source=source,
+                            correct=False,
+                            granularity=granularity,
+                            confidence="heuristic",
+                        )
+                    )
+                    self.assertEqual(status, "FAIL")
+                    self.assertEqual(
+                        [step.title for step in steps], [WRONG, NO_TARGET, missing]
+                    )
+                    self.assertEqual(
+                        [step.kind for step in steps],
+                        ["Observed", "Missing", "Missing"],
+                    )
+
     def test_bundled_examples(self) -> None:
         """Only a Gate 1 FAIL or UNPROVEN gets steps, and the reason is unchanged."""
         expected = {
@@ -213,6 +266,11 @@ class Gate1NextStepTests(unittest.TestCase):
             status, steps = _steps(payload)
             seen.add(status)
             kinds = {step.kind for step in steps}
+            ordered_kinds = [step.kind for step in steps]
+            self.assertEqual(
+                ordered_kinds,
+                sorted(ordered_kinds, key=lambda kind: kind != "Observed"),
+            )
             if status == "PASS":
                 self.assertEqual(steps, ())
             elif status == "UNPROVEN":
@@ -315,6 +373,32 @@ class Gate1NextStepRenderingTests(unittest.TestCase):
         self.assertIn("## Next steps — Gate 1 UNPROVEN", unfiltered)
         self.assertIn("## Next steps — Gate 1 FAIL", phantom)
         self.assertNotIn("Next steps", passing)
+
+    def test_cli_next_steps_are_last_with_default_and_explicit_readings(self) -> None:
+        """Default and explicit CLI options leave the actions after the readings."""
+        for example in (
+            "attribution-unfiltered-counter.json",
+            "phantom-tier-framework-hit.json",
+        ):
+            for fmt in ("text", "markdown"):
+                for options in ([], ["--readings"], ["--no-readings"]):
+                    with self.subTest(example=example, fmt=fmt, options=options):
+                        stdout = io.StringIO()
+                        with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                            code = main(
+                                ["report", str(EXAMPLES / example), "--format", fmt]
+                                + options
+                            )
+                        self.assertEqual(code, 1)
+                        output = stdout.getvalue()
+                        start = output.index("Next steps — Gate 1")
+                        if options == ["--no-readings"]:
+                            self.assertNotIn("READINGS", output)
+                        else:
+                            self.assertIn("READINGS", output)
+                            self.assertLess(output.index("READINGS"), start)
+                        self.assertNotIn("READINGS", output[start:])
+                        self.assertIn("See:", output.rstrip().splitlines()[-1])
 
 
 if __name__ == "__main__":

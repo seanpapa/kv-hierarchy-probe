@@ -637,22 +637,6 @@ def gate1_next_steps(
     band = f"{tolerance * 100:g}%"
     steps: list[Gate1NextStep] = []
 
-    if not targets:
-        steps.append(
-            Gate1NextStep(
-                title="No target-tier request",
-                kind="Missing",
-                finding="a request attributed to the target tier; the run has none.",
-                why="Gate 1 judges the requests the run says the tier served; "
-                "with none there is nothing to verify.",
-                action_kind="Check",
-                action="that the run read back entries the tier stores after the "
-                "upper tiers were cleared, and that the producer labels those "
-                "requests target_tier.",
-                limit="a run without tier reads says nothing about the tier.",
-                see=("docs/CHECKLIST.md", "docs/EVIDENCE.md#serving-tier-verification"),
-            )
-        )
     wrong = sum(not item.correct for item in classified)
     if wrong:
         steps.append(
@@ -660,7 +644,8 @@ def gate1_next_steps(
                 title="Wrong output",
                 kind="Observed",
                 finding=f"{wrong}/{total} requests returned a wrong answer.",
-                why="a tier that returns wrong KV fails Gate 1 whatever bytes it moved.",
+                why="every recorded request must return a correct answer, "
+                "regardless of its source.",
                 action_kind="Check",
                 action="the failing requests' outputs against their expected answers. "
                 "If only cache hits differ and their bytes matched, read the "
@@ -730,6 +715,22 @@ def gate1_next_steps(
                 "(a dedicated disk; tier-check T2), and the expected bytes.",
                 limit="more bytes do not show which of the two it was.",
                 see=("docs/TIER-CHECK.md", "docs/GEOMETRY.md"),
+            )
+        )
+    if not targets:
+        steps.append(
+            Gate1NextStep(
+                title="No target-tier request",
+                kind="Missing",
+                finding="a request attributed to the target tier; the run has none.",
+                why="Gate 1 judges the requests the run says the tier served; "
+                "with none there is nothing to verify.",
+                action_kind="Check",
+                action="that the run read back entries the tier stores after the "
+                "upper tiers were cleared, and that the producer labels those "
+                "requests target_tier.",
+                limit="a run without tier reads says nothing about the tier.",
+                see=("docs/CHECKLIST.md", "docs/EVIDENCE.md#serving-tier-verification"),
             )
         )
     unfiltered = sum(not item.filtered for item in targets)
@@ -1647,16 +1648,16 @@ def render_text(
     lines.append(f"Validated envelope: {envelope}")
     if assessment["performance_claims"] == "suppressed" and readings is None:
         lines.append("Performance numbers omitted because not all gates passed.")
-    if next_steps:
-        lines.extend(["", f"Next steps — Gate 1 {assessment['gates'][0]['status']}"])
-        for number, step in enumerate(next_steps, start=1):
-            lines.append(f"{number}. {step.title}")
-            lines.extend(f"   {line}" for line in _next_step_lines(step))
     if readings is not None:
         # Local
         from .readings import render_readings
 
         lines.extend(["", render_readings(readings, assessment["overall"] == "PASS")])
+    if next_steps:
+        lines.extend(["", f"Next steps — Gate 1 {assessment['gates'][0]['status']}"])
+        for number, step in enumerate(next_steps, start=1):
+            lines.append(f"{number}. {step.title}")
+            lines.extend(f"   {line}" for line in _next_step_lines(step))
     return "\n".join(lines)
 
 
@@ -1713,17 +1714,6 @@ def render_markdown(
                 "> Performance numbers are omitted because not all gates passed.",
             ]
         )
-    if next_steps:
-        lines.extend(
-            ["", f"## Next steps — Gate 1 {assessment['gates'][0]['status']}", ""]
-        )
-        for number, step in enumerate(next_steps, start=1):
-            details = _next_step_lines(step)
-            lines.append(f"{number}. **{step.title}**")
-            lines.extend(f"   - {line}" for line in details[:-1])
-            lines.append(
-                "   - See: " + ", ".join(f"`{target}`" for target in step.see)
-            )
     if readings is not None:
         # Local
         from .readings import render_readings
@@ -1736,4 +1726,15 @@ def render_markdown(
                 "```",
             ]
         )
+    if next_steps:
+        lines.extend(
+            ["", f"## Next steps — Gate 1 {assessment['gates'][0]['status']}", ""]
+        )
+        for number, step in enumerate(next_steps, start=1):
+            details = _next_step_lines(step)
+            lines.append(f"{number}. **{step.title}**")
+            lines.extend(f"   - {line}" for line in details[:-1])
+            lines.append(
+                "   - See: " + ", ".join(f"`{target}`" for target in step.see)
+            )
     return "\n".join(lines)
