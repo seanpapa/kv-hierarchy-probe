@@ -290,6 +290,20 @@ class DeviceTests(unittest.TestCase):
             "not compared: Docker root (docker info unavailable)", t2["finding"]
         )
 
+    def test_a_shared_disk_warns_even_when_a_comparison_is_missing(self) -> None:
+        """A confirmed shared disk is a warning; the missing comparison stays in the finding."""
+        host = FakeHost()
+        _make_partition_tier(host)
+        del host.commands[("docker", "info", "--format", "{{.DockerRootDir}}")]
+        document = run_tier_check(_request(), host)
+        t2 = _check(document, "T2")
+        self.assertEqual(t2["status"], WARN)
+        self.assertIn("root filesystem /", t2["finding"])
+        self.assertIn(
+            "not compared: Docker root (docker info unavailable)", t2["finding"]
+        )
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
     def test_requested_missing_model_directory_withholds_readiness(self) -> None:
         """A supplied model directory must be compared, not silently ignored."""
         document = run_tier_check(_request(model_dir="/missing-model"), FakeHost())
