@@ -11,6 +11,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -1140,6 +1141,63 @@ def _jsonschema_usable() -> bool:
     except ImportError:
         return False
     return True
+
+
+REFERENCE = ROOT / "docs" / "TIER-CHECK.md"
+TABLE_ROW = re.compile(r"^\| (T[0-9]+) \| ([^|]+?) \|", re.MULTILINE)
+LINK = re.compile(r"\]\(([^)\s]+)\)")
+HEADING = re.compile(r"^#{1,6} (.+)$", re.MULTILINE)
+NAMED_ANCHOR = re.compile(r'<a name="([^"]+)"></a>')
+FENCE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
+
+
+def _anchors(path: Path) -> set[str]:
+    """Return the fragment identifiers a Markdown file offers on GitHub.
+
+    Args:
+        path: Markdown file.
+
+    Returns:
+        The slug of each heading outside fenced code, as GitHub derives it
+        from the heading's text, plus every explicit ``<a name="...">`` anchor.
+    """
+    text = FENCE.sub("", path.read_text(encoding="utf-8"))
+    anchors = set(NAMED_ANCHOR.findall(text))
+    for heading in HEADING.findall(text):
+        visible = re.sub(r"<[^>]+>", "", heading).strip().lower()
+        anchors.add(re.sub(r"[^\w\- ]", "", visible).replace(" ", "-"))
+    return anchors
+
+
+class ReferenceDocumentTests(unittest.TestCase):
+    """docs/TIER-CHECK.md defines the checks the command actually prints."""
+
+    def test_table_lists_every_check_with_its_printed_title(self) -> None:
+        """The table's IDs and titles are the command's, in order."""
+        document = run_tier_check(_request(), FakeHost())
+        checks = document["checks"]
+        assert isinstance(checks, list)
+        printed = [(check["id"], check["title"]) for check in checks]
+        documented = TABLE_ROW.findall(REFERENCE.read_text(encoding="utf-8"))
+        self.assertEqual(documented, printed)
+
+    def test_relative_links_and_anchors_resolve(self) -> None:
+        """Every relative link names a file that exists and, if given, its anchor."""
+        targets = [
+            target
+            for target in LINK.findall(REFERENCE.read_text(encoding="utf-8"))
+            if "://" not in target
+        ]
+        self.assertTrue(targets)
+        for target in targets:
+            with self.subTest(link=target):
+                file_part, _, fragment = target.partition("#")
+                path = REFERENCE
+                if file_part:
+                    path = (REFERENCE.parent / file_part).resolve()
+                self.assertTrue(path.exists(), f"{target}: no such file")
+                if fragment:
+                    self.assertIn(fragment, _anchors(path))
 
 
 @unittest.skipUnless(_jsonschema_usable(), "jsonschema is a test-only dependency")

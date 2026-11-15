@@ -17,6 +17,7 @@ This directory contains the method, reproducibility notes, and release controls 
 | [`PROFILES.md`](PROFILES.md) | V1 component-tier claim boundary, v1 generality work, and the v2 disaggregated-path extension. | product, evidence, and adapter direction |
 | [`METHOD.md`](METHOD.md) | The procedure in full — the five gates, what counts as evidence, canonical terms. **Read this to understand.** | measurement and claim rules across evidence paths |
 | [`CHECKLIST.md`](CHECKLIST.md) | Common measurement checks and gate-specific criteria, with implementation coverage and operator responsibilities. | Gate 1 evidence review and every Gate 2–5 experiment, including reference scripts and external producers |
+| [`TIER-CHECK.md`](TIER-CHECK.md) | The read-only host preflight for a local NVMe tier: what each check (T1–T12) reads and decides, the overall result and the exit codes. `READY` is not Gate 1 evidence. | `python -m kvprobe tier-check` |
 | [`FAILURE-CATALOG.md`](FAILURE-CATALOG.md) | How a tier reports a plausible number instead of an error, and **which check catches each one** — including the ones no script catches. | all, plus operator preconditions |
 | [`EVIDENCE.md`](EVIDENCE.md) | Normalized evidence contract, exit status, and claim-suppression behavior. | `python -m kvprobe report` |
 | [`EXTERNAL-RUNS.md`](EXTERNAL-RUNS.md) | Context-run shape for stacks without reference scripts (e.g. Dynamo KVBM), and what a phantom tier looks like. | `python -m kvprobe ingest` |
@@ -112,7 +113,7 @@ sentences of the form "X *is* validated" belong here.
 If a claim here can no longer be stated accurately, **delete it rather than letting it age.** An
 absent line costs a reader nothing; a stale one costs them trust in every other line.
 
-## Current status — 2026-11-13
+## Current status — 2026-11-15
 
 - The hardware-verified scope is the one in the
   [README scope table](../README.md#scope--what-is-verified-today): local NVMe on three named paths.
@@ -131,6 +132,11 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
   run under that contract remain unestablished. Further NVMe feature expansion is paused;
   completion of that verification track was not a prerequisite for the public baseline. It does not
   replace common validation or the evidence report's Gate 1 verdict.
+- `tier-check`, a read-only preflight for a local NVMe tier, is on `main` and not yet in a release.
+  The minimal runbook runs it as step 2, and [`TIER-CHECK.md`](TIER-CHECK.md) defines its checks.
+  On the reference host's single-path local tier it returned `READY`; native multipath heads are
+  covered by tests only. `READY` says that host conditions which would spoil a run were not found;
+  it is not Gate 1 evidence.
 - On 2026-10-08 all five gates were measured in one run of one declared configuration, on the
   host and model of the 2026-10-05 re-measurement: a native cuFile GDS arm with its recompute arm,
   4,096-token entries of 1 GiB, and a 1 GiB staging pool so that Gate 4 can classify hits. The
