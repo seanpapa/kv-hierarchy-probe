@@ -204,7 +204,9 @@ target-device exclusivity.
 **Passes when:** Gate 2 established the target-tier benefit and every requested Gate 3 attempt was
 retained and classified. A fallback or a store with no observed write does not fail the measurement;
 it reduces realized saving. An `unattributed` attempt makes Gate 3 `UNPROVEN` because its economic
-effect is measured but its path cannot be classified.
+effect is measured but its path cannot be classified. A block that keeps successful samples only — a
+store cost without the per-attempt outcomes — is also `UNPROVEN`: the attempts it left out are
+missing from the economics, so it does not show the realized decision.
 
 **Reports:** `ECONOMICAL` when the declared expected reuse count reaches the realized break-even,
 `NOT_ECONOMICAL` when it does not, and no economic claim when the measurement is unproven. The
@@ -229,7 +231,9 @@ still has room, then sweep the working set past the upper tier's capacity.
 tier, fell back to recompute, or missed. The declared upper-tier capacity is compared with each
 working-set size independently of whether the target tier produced a hit. The gate fails when the
 sweep exceeded that capacity and this tier served nothing: entries spilled but the tier did not
-serve them.
+serve them. A sweep that exceeded that capacity must also record its classification counts. Without
+them the evidence says only that at least one retrieval was served by this tier, not how much of the
+overflow it served, and the gate is `UNPROVEN`.
 
 **Reports:** whether the tier was needed. While the tier above always has room, this tier is never the
 best choice — it is slower than the tier above and adds only operational risk; the result says its

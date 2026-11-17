@@ -134,7 +134,7 @@ class SchemaContractTest(unittest.TestCase):
         """The schema, not only the hand validator, requires the device."""
         validator = _validator("0.3.0")
         document = json.loads(
-            (EXAMPLES / "evidence" / "pass-v0.3.json").read_text(encoding="utf-8")
+            (EXAMPLES / "evidence" / "pass-all-attempts.json").read_text(encoding="utf-8")
         )
         del document["configurations"][0]["parameters"]["runtime"]["device_id"]
 
@@ -146,7 +146,7 @@ class SchemaContractTest(unittest.TestCase):
         for value in ("00000000:01:00.0", "0000:a1:00.0", "gb10-0", "node2-accel-a"):
             with self.subTest(device_id=value):
                 document = json.loads(
-                    (EXAMPLES / "evidence" / "pass-v0.3.json").read_text(
+                    (EXAMPLES / "evidence" / "pass-all-attempts.json").read_text(
                         encoding="utf-8"
                     )
                 )
@@ -177,7 +177,7 @@ class SchemaContractTest(unittest.TestCase):
             for version in versions:
                 with self.subTest(field=add.__name__, version=version):
                     document = json.loads(
-                        (EXAMPLES / "evidence" / "pass-v0.3.json").read_text(encoding="utf-8")
+                        (EXAMPLES / "evidence" / "pass-all-attempts.json").read_text(encoding="utf-8")
                     )
                     document["schema_version"] = version
                     add(document)
@@ -193,7 +193,7 @@ class SchemaContractTest(unittest.TestCase):
     def test_only_v0_3_1_carries_the_envelope_input_size(self) -> None:
         """The input size is a 0.3.1 addition; 0.3.0 stays closed to it."""
         document = json.loads(
-            (EXAMPLES / "evidence" / "pass-v0.3.json").read_text(encoding="utf-8")
+            (EXAMPLES / "evidence" / "pass-all-attempts.json").read_text(encoding="utf-8")
         )
         document["evidence"]["envelope"]["request_cacheable_tokens"] = 2048
         self.assertTrue(list(_validator("0.3.0").iter_errors(document)))

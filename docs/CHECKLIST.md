@@ -152,7 +152,7 @@ Host-wide counters still prove presence, not target-device exclusivity.
 **Result:** `ECONOMICAL` or `NOT_ECONOMICAL` from the declared expected reuse count;
 `UNPROVEN` leaves the economic decision indeterminate.
 **Trap:** computing repayment from successful hits only. That answers the optimistic case, not the
-realized admission decision.
+realized admission decision. The report judges such a block `UNPROVEN`.
 
 ### Gate 4 — Capacity justification · *is this tier ever the best choice?*
 
@@ -166,7 +166,8 @@ and `retrievals` records show whether that entry's store wrote anything.
 - [ ] Working set swept **past** the upper tier's capacity.
 
 **Pass:** every retrieval in the sweep classified (tier above, this tier, or miss). **Fail:** the tier
-above overflowed and this tier served nothing.
+above overflowed and this tier served nothing. **Unproven:** the tier above overflowed and the
+classification counts were not recorded.
 **Result:** whether there is a region where the tier above cannot hold the working set and this
 tier serves it — or its necessity is not shown for this workload.
 **Trap:** judging a storage tier against DRAM speed. Past the capacity boundary it competes with

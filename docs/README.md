@@ -183,7 +183,8 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
 - Historical Gate 3 producer cross-check on 2026-09-10, before the all-attempt contract: reversing
   context order produced 10/10 observed stores and retrievals at both entry sizes and the same
   sub-one-reuse conclusion. It is not a validation of adapter `0.4.0`; re-ingesting that run keeps
-  the legacy calculation, so the all-attempt path requires a new run. Gate 4
+  its successful-sample block, which the report now judges `UNPROVEN`, so the all-attempt path
+  requires a new run. Gate 4
   only through the clean crossover: one through three entries were DRAM-only and the
   fourth was three DRAM plus one NVMe, with no fallback or miss. Behavior well above the crossover
   remains out of scope. Independent reproduction by someone else is a separate, later bar.

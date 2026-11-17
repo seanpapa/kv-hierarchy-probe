@@ -82,7 +82,9 @@ to its working set, and retains totals for the whole sweep and for rows beyond t
 `upper_tier_capacity_bytes`. Overflow comes from that declared capacity boundary, not from the
 first successful NVMe hit; this preserves the failure case where the working set exceeded the
 upper tier but the target tier served nothing. Evidence written by an older adapter remains
-readable, but it has no retained classification totals. The report's Gate 4 result states those beyond-capacity counts: how many
+readable, but it has no retained classification totals: when its sweep exceeded the upper tier's
+capacity, Gate 4 is `UNPROVEN`, because two booleans do not show how much of the overflow the target
+tier served. The report's Gate 4 result states the beyond-capacity counts: how many
 retrievals the target tier served and how many fell back or missed.
 
 **Gate 4 splits `fallback` when the producer kept per-request records.** When every row carries
@@ -110,9 +112,10 @@ and emits `calculation_basis: all_attempts`, signed `realized_reuse_saving_s`, a
 mean realized saving. Only verified target-tier hits receive positive credit; a fast upper-tier
 outcome contributes zero, while negative saving remains valid. The count buckets must cover every attempt.
 `unattributed > 0` makes Gate 3 `UNPROVEN` rather than silently shrinking the sample, and ingest
-refuses a row with fewer attempts than the run requested. Older adapter output with `sample_counts`
-remains readable through the legacy repayment path; its result is labelled an `optimistic
-estimate`, because the attempts the producer dropped are missing from it.
+refuses a row with fewer attempts than the run requested. Older adapter output that kept
+successful samples only (`sample_counts`, no `calculation_basis`) is still read, but its Gate 3 is
+`UNPROVEN`: the attempts the producer dropped are missing from it, so it does not show the realized
+decision. The reason names the sample counts when the block carries them.
 
 **Gate 5 counts conservatively.** A batch that failed its tier gate, or holds an incorrect response,
 cannot be split into served and unserved requests, so none of it counts as served and the envelope
@@ -161,8 +164,8 @@ configuration consistency, not independently captured model/image identity.
 |---|---|---|
 | `attribution.requests` | Correctness, attributed source, external-evidence flag, bytes observed | 1 — Serving Tier Verification |
 | `break_even` | Non-empty retrieval and recompute TTFT samples | 2 — Single-hit retrieval break-even |
-| `admission` | Store cost, expected reuse count, and (for adapter `0.4.0`) realized saving plus complete attempt-outcome counts | 3 — Admission cost |
-| `capacity` | Whether upper-tier overflow and target-tier service were observed | 4 — Capacity justification |
+| `admission` | Store cost, expected reuse count, realized saving and complete attempt-outcome counts (`calculation_basis: all_attempts`); without the last two Gate 3 is `UNPROVEN` | 3 — Admission cost |
+| `capacity` | Whether upper-tier overflow and target-tier service were observed, and the classification counts; without the counts a sweep that overflowed is `UNPROVEN` | 4 — Capacity justification |
 | `capacity.*classification_counts.fallback_store_write_*` | Optional (`0.3.2`): `fallback` split by whether the entry's store write was observed earlier in the sweep | 4 — named in the result |
 | `envelope.levels` | Requests and target-tier-served requests at each concurrency | 5 — Operating envelope |
 | `envelope.request_cacheable_tokens` | Optional (`0.3.1`): cacheable tokens per request, one value for the whole sweep | 5 — named in the result |
@@ -171,7 +174,8 @@ See [`../examples/evidence/pass-capabilities.json`](../examples/evidence/pass-ca
 synthetic, configuration-bound capability evidence and
 [`../examples/evidence/pass-all-attempts.json`](../examples/evidence/pass-all-attempts.json) for the current
 configuration-bound shape with an all-attempt Gate 3 block
-([`pass-v0.3.json`](../examples/evidence/pass-v0.3.json) keeps the legacy successful-sample block). [`../examples/README.md`](../examples/README.md) records which bundled
+([`admission-successful-samples-only.json`](../examples/evidence/admission-successful-samples-only.json)
+keeps a successful-sample block, which Gate 3 judges `UNPROVEN`). [`../examples/README.md`](../examples/README.md) records which bundled
 examples were produced by `kvprobe ingest` from measurement runs and which are hand-written.
 
 ## Configuration identity in v0.3

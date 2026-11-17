@@ -1,7 +1,7 @@
 {
   "schema_version": "0.3.0",
-  "run_id": "sample-v0.3-pass",
-  "description": "Every measured object is bound to one verified configuration.",
+  "run_id": "sample-admission-successful-samples-only",
+  "description": "Synthetic. Gate 3 carries a store cost from successful samples only, without the per-attempt outcomes, so its admission economics are unproven and no performance claim is allowed.",
   "provenance": {
     "normalized_by": {
       "adapter": "reference-adapter",

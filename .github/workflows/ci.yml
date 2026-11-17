@@ -29,7 +29,7 @@ jobs:
       - name: Install the CLI without runtime dependencies
         run: python -m pip install -e .
       - name: Confirm the portable core imports with no dependencies installed
-        run: python -m kvprobe report examples/evidence/pass-v0.3.json
+        run: python -m kvprobe report examples/evidence/pass-all-attempts.json
       - name: Install the test-only schema validator
         run: python -m pip install -e '.[test]'
       - name: Compile Python sources

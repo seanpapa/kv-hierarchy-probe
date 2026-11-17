@@ -1,6 +1,6 @@
 # Roadmap and known limitations
 
-> Reviewed: 2026-11-15. This page states what the probe does not verify yet and what is planned.
+> Reviewed: 2026-11-17. This page states what the probe does not verify yet and what is planned.
 > It is not a schedule. Items move or close through pull requests that update this page.
 
 **Verified today:** local NVMe only, on the paths listed in
@@ -14,13 +14,14 @@ names and internal paths.
 
 ## Next
 
-**Review the Gate 3 and Gate 4 pass conditions against the LMCache v0.4.1 staging-pool mechanism.**
-Confirm whether retaining `store_unattributed` and `fallback` attempts is sufficient to prevent a
-false `PASS`, document the effect on existing evidence and verdicts, and record whether an assessment
-version change is required.
+**State the staging-pool cause where Gate 3 and Gate 4 describe their losses.** The Gate 4 result
+counts the retrievals that fell back beyond capacity but does not say that a staging pool still held
+by the serving stack can produce them without a device fault
+([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). METHOD does not yet say that the
+same cause shows up in Gate 3 as more `store_unattributed` attempts, which raises the reuses needed.
 
-- **Closes when:** the review explains why the existing conditions remain sufficient or defines the
-  required contract change, and records the effect on existing evidence and verdicts.
+- **Closes when:** the Gate 4 result names that cause where the evidence does not point to the store
+  path, METHOD states the direction of the Gate 3 effect, and no verdict changes.
 
 ## Recently completed on main
 
@@ -32,7 +33,8 @@ These changes are implemented on `main` but are not yet included in a tagged rel
 | Gate 1 next steps | A `FAIL` or `UNPROVEN` report names each finding, why it matters and what to check next ([GATE1](GATE1.md#next-steps-in-the-report)) | #18 |
 | Gate 4 fallback kinds | Complete per-request records let the report split fallbacks beyond capacity by earlier observed store writes of the same entry and suggest where to look first ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #19 |
 | Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | #19, #20 |
-| GDS staging-pool cause investigation | Source review and a controlled CPU-cache-on/off comparison support the explanation for pool space held after a completed load ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). This closes the cause-finding item only; Gate 3 and Gate 4 pass-condition review remains under Next | #22 |
+| GDS staging-pool cause investigation | Source review and a controlled CPU-cache-on/off comparison support the explanation for pool space held after a completed load ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). This closed the cause-finding item only; the pass-condition review is the next row | #22 |
+| Gate 3 and Gate 4 pass-condition review | Retaining every attempt and the classification counts is enough to prevent a false `PASS`; evidence without them was not covered. A Gate 3 block of successful samples only and a Gate 4 overflow without its counts are now `UNPROVEN`, and evidence with both is judged as before ([METHOD](METHOD.md#gate-3--admission-cost)) | #23 |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit

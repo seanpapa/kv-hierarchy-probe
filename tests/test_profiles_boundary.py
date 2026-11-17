@@ -52,14 +52,14 @@ class ReporterIgnoresProfileTest(unittest.TestCase):
 
     def test_profile_does_not_change_the_assessment(self) -> None:
         """The verdict must be identical with and without the property."""
-        baseline = assess_evidence(_load("pass-v0.3.json"))
-        tagged = copy.deepcopy(_load("pass-v0.3.json"))
+        baseline = assess_evidence(_load("pass-all-attempts.json"))
+        tagged = copy.deepcopy(_load("pass-all-attempts.json"))
         tagged["measurement_profile"] = "disaggregated-path"
         self.assertEqual(assess_evidence(tagged), baseline)
 
     def test_profile_is_not_carried_into_the_assessment(self) -> None:
         """No profile value may reach the output and become a claim scope."""
-        tagged = copy.deepcopy(_load("pass-v0.3.json"))
+        tagged = copy.deepcopy(_load("pass-all-attempts.json"))
         tagged["measurement_profile"] = "disaggregated-path"
         assessment = assess_evidence(tagged)
         self.assertNotIn("measurement_profile", assessment)

@@ -33,6 +33,22 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 
 ### Changed
 
+- **Gate 3 and Gate 4 no longer pass on incomplete evidence.** A Gate 3 block that keeps successful
+  samples only — a store cost without the per-attempt outcomes — is now `UNPROVEN`. It used to pass
+  with its result labelled an optimistic estimate. A Gate 4 sweep that exceeded the upper tier's
+  capacity without its classification counts is now `UNPROVEN`. It used to pass and say the tier
+  served the overflow, although two booleans show only that at least one retrieval was served.
+  Either one withholds performance claims and makes `report` exit 1
+  ([METHOD, Gate 3](docs/METHOD.md#gate-3--admission-cost) and
+  [Gate 4](docs/METHOD.md#gate-4--capacity-justification)). Documents that keep every attempt and
+  the counts are judged as before; the verdict and results of the 2026-10-08 run in
+  [docs/README](docs/README.md) are unchanged. This closes the ROADMAP review of the two pass
+  conditions against the staging-pool mechanism in
+  [FAILURE-CATALOG §13](docs/FAILURE-CATALOG.md#staging-buffer-full).
+- **Bundled examples follow the change.** `pass-v0.3.json` is renamed
+  `admission-successful-samples-only.json` and is `UNPROVEN`. `pass-capabilities.json` gains an
+  all-attempt Gate 3 block and Gate 4 classification counts, and `partial-unsupported.json` gains
+  the counts; both keep their verdicts ([examples](examples/README.md)).
 - [FAILURE-CATALOG](docs/FAILURE-CATALOG.md#staging-buffer-full) §13 records the source-supported
   explanation and controlled CPU-cache-on/off comparison for staging-pool space held after a GDS
   load. The ROADMAP item that asked for the cause is closed. This documentation-only change does not
@@ -45,6 +61,9 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   adapter and the assessment each move up one PATCH version, and the assessment one more for the
   correction under Fixed. The report still reads every earlier supported evidence version.
   [VERSIONING](docs/VERSIONING.md) lists the numbers.
+- **Changed, incompatible:** the assessment moves up one MINOR version, because two verdicts changed
+  for documents the report already accepted. [VERSIONING](docs/VERSIONING.md#rules) now states that
+  rule. The evidence schema and the ingest adapter are unchanged.
 
 ### Known limits
 

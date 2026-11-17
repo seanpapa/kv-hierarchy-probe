@@ -25,6 +25,10 @@ from kvprobe.report import (
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_HASHES = {
+    "admission-successful-samples-only.json": [
+        "5ea25c0801db6919df2288fa1d02c0628a9ef9d753a8ff492fee07ad28c99c71",
+        "bd7e7a043a721c74826ae54f70b1644dbc0e9e21b89660b257b5ed8c2a9734e8",
+    ],
     "attribution-unfiltered-counter.json": [
         "667202f9374483480d40590fdf3e06a7598457de4fcc0e841288e68bf1da8ff5",
         "f6650d3751aa9b4966ebbb7a016c06ed0967a77069ed148987823d77ffc29a0e",
@@ -46,22 +50,22 @@ BASELINE_HASHES = {
         "6f5f8965e0e7f5614f1ad701255c2b7526f616bb870da520c45b86c7bbc10653",
     ],
     "partial-unsupported.json": [
-        "b7c401b54cc6128b2c2d9fd4e81eeef282126a14d4b6bbc749810c2ab5f91956",
-        "0e88382061b18ca7c67783de3e9119668487bab4e8934a232b22a0e9ffd40098",
+        "1f9ddbc5b8fd397a87b95b9da041fa5d896b5d58c3762f543c094ba227a38c9b",
+        "bdcab14f6cc1744e3f551114ea812ae761f28e4eb8b9c89e73039dc8fa7c42cf",
+    ],
+    "pass-all-attempts.json": [
+        "101be9abed810c114acbf3073e643a776e658448c2ff338dc68eafd281c5a19a",
+        "8de30d6ee706b0ebd862299429ee2fcf85d878df2e11b71bcc01f536440360df",
     ],
     "pass-capabilities.json": [
-        "eac1bde677e6d6c51d84d18770797f7f3995b1dfa3d012c4aa4a2a05bd9cacad",
-        "b113775b5b67909149fb9810251f1dcacf32181237e22cb90c8041421c6b2da2",
-    ],
-    "pass-v0.3.json": [
-        "464803722694455d0982376fa341402dc3fae92d12ca9eb11795995e056e7e23",
-        "a6c21d94906173d9e8ceaaaca50ef6962a3e3f260799dcd03eeaeb19d560b553",
+        "d29a880dff27d858455111825546163995e934c5e0d76d09f38adecf9239d6cb",
+        "5bbe2a7f6853ada7a308a0206cdd82fb7fc33c00207255a84078ebcc88efef02",
     ],
 }
 
 
 def sample() -> dict:
-    return json.loads((ROOT / "examples/evidence/pass-v0.3.json").read_text())
+    return json.loads((ROOT / "examples/evidence/pass-all-attempts.json").read_text())
 
 
 class EfficiencyReadings(unittest.TestCase):
@@ -77,8 +81,11 @@ class EfficiencyReadings(unittest.TestCase):
         )
         self.assertAlmostEqual(metrics["saving_per_hit"]["value"], 0.13)
         self.assertAlmostEqual(metrics["speedup"]["value"], 0.3 / 0.17)
-        self.assertAlmostEqual(metrics["repay_reuses"]["value"], 0.05 / 0.13)
-        self.assertAlmostEqual(metrics["margin"]["value"], 5.2)
+        # Repayment rests on the realized saving of all ten attempts, not on
+        # the Gate 2 saving of a successful hit.
+        self.assertAlmostEqual(metrics["repay_reuses"]["value"], 0.05 / 0.075)
+        self.assertEqual(metrics["repay_reuses"]["n"], 10)
+        self.assertAlmostEqual(metrics["margin"]["value"], 3.0)
         self.assertEqual(
             [x["ratio"] for x in metrics["tier_served_ratio"]["value"]], [1, 1]
         )
@@ -119,6 +126,9 @@ class EfficiencyReadings(unittest.TestCase):
         for retrieval in (0.3, 0.4):
             payload = sample()
             payload["evidence"]["break_even"]["retrieval_ttft_s"] = [retrieval]
+            payload["evidence"]["admission"]["realized_reuse_saving_s"] = (
+                0.3 - retrieval
+            )
             readings = compute_readings(payload)
             repay = readings["efficiency"]["repay_reuses"]
             if readings["claims_allowed"]:
@@ -261,7 +271,7 @@ class EfficiencyReadings(unittest.TestCase):
         )
 
     def test_cli_shows_readings_by_default_and_exit_status_is_unchanged(self) -> None:
-        for filename in ("pass-v0.3.json", "attribution-unfiltered-counter.json"):
+        for filename in ("pass-all-attempts.json", "attribution-unfiltered-counter.json"):
             path = ROOT / "examples/evidence" / filename
             for fmt in ("text", "markdown", "json"):
                 claim_only = io.StringIO()
@@ -286,7 +296,7 @@ class EfficiencyReadings(unittest.TestCase):
                     # when one was measured.
                     self.assertEqual(
                         "TTFT-bounded lower bound" in output.getvalue(),
-                        filename == "pass-v0.3.json",
+                        filename == "pass-all-attempts.json",
                     )
                     if expected_exit:
                         # A failed run reports integrity observations and names

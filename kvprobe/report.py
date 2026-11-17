@@ -99,7 +99,11 @@ _PASSING_CONFIDENCE = {"direct", "corroborating"}
 #: observed store write of the same entry and where to look first. Verdicts
 #: are unchanged. 0.6.4 refuses ``envelope.request_cacheable_tokens`` in a
 #: document that declares a version without it, as that version's schema does.
-ASSESSMENT_VERSION = "0.6.4"
+#: 0.7.0 changes two verdicts from PASS to UNPROVEN: a Gate 3 block that keeps
+#: successful samples only, and a Gate 4 sweep that overflowed without its
+#: classification counts. Documents with every attempt and the counts are
+#: judged as before.
+ASSESSMENT_VERSION = "0.7.0"
 _GATE_STATUSES = {"PASS", "FAIL", "UNPROVEN", "SKIP_UNSUPPORTED", "INVALID"}
 _FATAL_SCOPES = {"measurement"}
 
@@ -970,16 +974,14 @@ def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
                 "shows presence, not target-device exclusivity",
             )
         else:
-            avoided_per_reuse = recompute_p50 - retrieval_p50
-            reuses_to_repay = (
-                store_cost / avoided_per_reuse if avoided_per_reuse > 0 else math.inf
-            )
             gate3 = _gate_v0_2(
                 3,
-                "PASS",
-                "store cost was measured only for requests with observed host-wide "
-                "nvidia-fs write activity (presence, not target-device exclusivity), "
-                "and the saving per reuse comes from Gate 2",
+                "UNPROVEN",
+                "admission economics rest on successful samples only: attempts "
+                "without an observed write or read were left out, so the realized "
+                "decision is not shown; Gate 3 needs every attempt "
+                "(calculation_basis all_attempts)"
+                + _admission_samples_note(admission),
             )
 
     capacity = _object(evidence, "capacity")
@@ -1004,6 +1006,16 @@ def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
                 "FAIL",
                 "the upper tier overflowed but no retrieval was served by the "
                 "target tier" + (f" — {direction}" if direction else ""),
+            )
+        elif overflow and capacity_counts is None:
+            gate4 = _gate_v0_2(
+                4,
+                "UNPROVEN",
+                "the upper tier overflowed and at least one retrieval was served "
+                "by the target tier, but the classification counts were not "
+                "recorded, so how much of the overflow the tier served is not "
+                "shown; Gate 4 needs classification_counts and "
+                "overflow_classification_counts",
             )
         else:
             gate4 = _gate_v0_2(
@@ -1077,13 +1089,7 @@ def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
         and expected_reuses is not None
         and reuses_to_repay is not None
     ):
-        text, detail = _admission_result(
-            expected_reuses,
-            reuses_to_repay,
-            "decision"
-            if admission.get("calculation_basis") == "all_attempts"
-            else "optimistic estimate",
-        )
+        text, detail = _admission_result(expected_reuses, reuses_to_repay)
         gate3["result"] = (
             f"{text} ({detail})" if overall == "PASS" and detail else text
         ) + _admission_attempts_note(admission)
@@ -1241,35 +1247,27 @@ def _admission_attempts_note(admission: dict[str, Any]) -> str:
     """Return the Gate 3 result suffix that states what the decision rests on.
 
     Args:
-        admission: The ``admission`` evidence block.
+        admission: The all-attempt ``admission`` evidence block.
 
     Returns:
-        For all-attempt evidence, the outcome counts of every attempt. For legacy
-        evidence, a statement that only successful samples were used, followed by
-        the sample counts when the block carries them.
+        The outcome counts of every attempt.
 
     Raises:
         EvidenceError: If the counts are malformed or do not add up.
     """
-    if admission.get("calculation_basis") == "all_attempts":
-        counts = _admission_attempt_counts(admission)
-        return (
-            f"; all {counts['attempted']} attempts included: "
-            f"{counts['target_tier']} target-tier, {counts['fallback']} fallback, "
-            f"{counts['store_unattributed']} store-unattributed"
-        )
+    counts = _admission_attempt_counts(admission)
     return (
-        "; legacy successful-sample basis: attempts without an observed write or "
-        "read were left out, so this is not the realized decision"
-        + _admission_samples_note(admission)
+        f"; all {counts['attempted']} attempts included: "
+        f"{counts['target_tier']} target-tier, {counts['fallback']} fallback, "
+        f"{counts['store_unattributed']} store-unattributed"
     )
 
 
 def _admission_samples_note(admission: dict[str, Any]) -> str:
-    """Return the Gate 3 result suffix that states how many stores the cost rests on.
+    """Return the Gate 3 reason suffix that states how many stores the cost rests on.
 
-    Sample counts are integrity facts, not performance numbers, so they are shown
-    whatever the overall verdict.
+    Sample counts are integrity facts, not performance numbers, so the reason for
+    a successful-sample block names them whatever the overall verdict.
 
     Args:
         admission: The ``admission`` evidence block.
@@ -1367,11 +1365,16 @@ def _capacity_result(
 
     Args:
         overflow: Whether the upper tier overflowed in the sweep.
-        counts: Overall and beyond-capacity classification counts, or ``None``
-            for evidence written before they were recorded.
+        counts: Overall and beyond-capacity classification counts. ``None``
+            only for a sweep that never overflowed, in evidence written before
+            the counts were recorded.
 
     Returns:
         The Gate 4 result sentence.
+
+    Raises:
+        EvidenceError: If the sweep overflowed and carries no counts; such a
+            sweep is not a valid measurement and has no result.
     """
     if not overflow:
         return (
@@ -1379,9 +1382,9 @@ def _capacity_result(
             "necessity is not shown for this workload"
         )
     if counts is None:
-        return (
-            "the upper tier overflowed and the target tier served the overflow: "
-            "the tier is needed beyond the upper tier's capacity"
+        raise EvidenceError(
+            "a capacity sweep that overflowed has no result without its "
+            "classification counts"
         )
     beyond = counts[1]
     lost = beyond["fallback"] + beyond["miss"]
@@ -1414,16 +1417,14 @@ def _capacity_result(
 
 
 def _admission_result(
-    expected_reuses: float, reuses_to_repay: float, label: str
+    expected_reuses: float, reuses_to_repay: float
 ) -> tuple[str, str]:
-    """Describe what a valid admission-cost measurement found.
+    """Describe what a valid all-attempt admission-cost measurement found.
 
     Args:
         expected_reuses: Reuses the workload expects per admitted entry.
         reuses_to_repay: Reuses needed to repay one admission; infinite when
             reuse saves nothing.
-        label: What the finding is — ``"decision"`` for all-attempt evidence,
-            ``"optimistic estimate"`` for legacy successful-sample evidence.
 
     Returns:
         ``(finding, numbers)``; ``numbers`` is empty when there is no finite
@@ -1432,18 +1433,18 @@ def _admission_result(
     """
     if not math.isfinite(reuses_to_repay):
         return (
-            f"{label}: NOT_ECONOMICAL — reuse saves nothing, so admission is "
+            "decision: NOT_ECONOMICAL — reuse saves nothing, so admission is "
             "never repaid",
             "",
         )
     numbers = f"expected reuses {expected_reuses:.2f}; reuses to repay {reuses_to_repay:.2f}"
     if expected_reuses >= reuses_to_repay:
         return (
-            f"{label}: ECONOMICAL — admission is repaid within the expected reuses",
+            "decision: ECONOMICAL — admission is repaid within the expected reuses",
             numbers,
         )
     return (
-        f"{label}: NOT_ECONOMICAL — admission needs more reuses than the "
+        "decision: NOT_ECONOMICAL — admission needs more reuses than the "
         "workload expects",
         numbers,
     )

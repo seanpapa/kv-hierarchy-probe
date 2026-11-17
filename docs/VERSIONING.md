@@ -14,6 +14,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 |---|---|
 | Format | `MAJOR.MINOR.PATCH`. The package follows PEP 440 (`0.1.0` is the first public release). |
 | Before 1.0 | An **incompatible** change bumps MINOR (`0.2.x` → `0.3.0`). A compatible addition or a correction bumps PATCH. |
+| Verdicts | A change that alters the verdict or exit status of a document the report already accepts is incompatible. A change to the wording of a reason or result alone is a correction. |
 | From 1.0 | Semantic versioning: incompatible → MAJOR, compatible addition → MINOR, correction → PATCH. |
 | `-experimental` | Marks a contract whose producer has not passed acceptance. Removing the suffix is itself a recorded change. |
 | Readers | Every reader states the versions it accepts and refuses others with a message naming the version. |
@@ -28,7 +29,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 |---|---|---|---|---|
 | `version` | `0.1.1` | — | The package | `pyproject.toml` |
 | `schema_version` | `0.3.2` | `0.3.0`, `0.3.1`, `0.3.2` | The evidence document that `report` judges | `kvprobe/ingest.py`, `kvprobe/report.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
-| `assessment_version` | `0.6.4` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
+| `assessment_version` | `0.7.0` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
 | `normalized_by.version` | `0.4.3` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
 | `manifest_version` | `0.2.1` | — | The `doctor` capability manifest | `kvprobe/doctor.py` |
 | `tier_check_version` | `0.1.0` | — | The `tier-check` result: read-only host conditions for a local PCIe NVMe run; each check records `required_for_ready`, and a required `SKIP` blocks readiness. Not Gate 1 evidence | `kvprobe/tier_check.py`, `schemas/tier-check-v0.1.0.schema.json` |
