@@ -1,6 +1,6 @@
 # Roadmap and known limitations
 
-> Reviewed: 2026-11-17. This page states what the probe does not verify yet and what is planned.
+> Reviewed: 2026-11-18. This page states what the probe does not verify yet and what is planned.
 > It is not a schedule. Items move or close through pull requests that update this page.
 
 **Verified today:** local NVMe only, on the paths listed in
@@ -14,14 +14,16 @@ names and internal paths.
 
 ## Next
 
-**State the staging-pool cause where Gate 3 and Gate 4 describe their losses.** The Gate 4 result
-counts the retrievals that fell back beyond capacity but does not say that a staging pool still held
-by the serving stack can produce them without a device fault
-([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). METHOD does not yet say that the
-same cause can show up in Gate 3 as more `store_unattributed` attempts, which raises the reuses needed.
+**Check TP=1 on a multi-GPU host.** The reference runs place the measured TP=1 endpoint on one
+selected GPU of a host with several. Run that endpoint on one GPU and then on another, and confirm that the GPU the configuration names is the one
+the process and container actually use, and that controlled work on the other GPU stays out of the
+request evidence.
 
-- **Closes when:** the Gate 4 result names that cause where the evidence does not point to the store
-  path, METHOD states the direction of the Gate 3 effect, and no verdict changes.
+- **Closes when:** recorded runs on two GPU choices show that the configured GPU, the device in use
+  and the configuration record agree, and that changing the GPU changes the record; the effect of
+  controlled work on another GPU on attribution and timing is recorded; the gates keep valid
+  measurements, observed violations and missing evidence apart as documented; and any code fix comes
+  with a regression test. A TP>1 worker group stays out of scope.
 
 ## Recently completed on main
 
@@ -35,6 +37,7 @@ These changes are implemented on `main` but are not yet included in a tagged rel
 | Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | #19, #20 |
 | GDS staging-pool cause investigation | Source review and a controlled CPU-cache-on/off comparison support the explanation for pool space held after a completed load ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). This closed the cause-finding item only; the pass-condition review is the next row | #22 |
 | Gate 3 and Gate 4 pass-condition review | Retaining every attempt and the classification counts is enough to prevent a false `PASS`; evidence without them was not covered. A Gate 3 block of successful samples only and a Gate 4 overflow with target-tier service but no counts are now `UNPROVEN`; overflow with no service remains `FAIL`, and evidence with every attempt and the counts is judged as before ([METHOD](METHOD.md#gate-3--admission-cost)) | #23 |
+| Staging-pool cause in the Gate 4 text | Fallbacks beyond capacity now carry a note that a held staging pool can cause them, so the counts alone do not show a device fault, unless every fallback points to the store path; METHOD states that the same cause can raise Gate 3's reuses needed. No verdict changed ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #24 |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit
@@ -66,8 +69,8 @@ Dynamo KVBM), other NIXL modes, other GPUs or SSDs — recording what breaks, no
 
 A host with several GPUs is not the same as a request using several GPUs:
 
-1. **TP=1 on a multi-GPU host:** the measured GPU must match the selected one inside the container,
-   and work on another GPU must stay out of the evidence.
+1. **TP=1 on a multi-GPU host** (the [Next](#next) item): the measured GPU must match the selected
+   one inside the container, and work on another GPU must stay out of the evidence.
 2. **TP>1:** the evidence does not encode a worker group's placement or collectives
    ([multi-GPU worker groups](CONFIGURATION.md#multi-gpu-worker-groups)). A TP=1 result does not cover it.
 

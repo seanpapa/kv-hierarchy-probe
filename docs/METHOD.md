@@ -208,6 +208,14 @@ effect is measured but its path cannot be classified. A block that keeps success
 store cost without the per-attempt outcomes — is also `UNPROVEN`: the attempts it left out are
 missing from the economics, so it does not show the realized decision.
 
+**A held staging pool can raise the reuses needed.** A staging pool still held by the serving stack
+can leave a store without an observed write ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)).
+Gate 3 keeps such an attempt as `store_unattributed`: its measured store cost stays in the admission
+cost and its reuse earns no positive saving, so it can raise the reuses needed to repay admission.
+The count of `store_unattributed` attempts in the result shows how often that happened; how much
+those attempts moved the cost and the saving depends on their measured values. The count does not by
+itself show a device fault.
+
 **Reports:** `ECONOMICAL` when the declared expected reuse count reaches the realized break-even,
 `NOT_ECONOMICAL` when it does not, and no economic claim when the measurement is unproven. The
 expected reuse count remains a workload input stated before measurement, not something inferred
@@ -460,6 +468,12 @@ first — the load path and the staging pool when the write was observed, the st
 not ([EVIDENCE](EVIDENCE.md#producing-evidence-from-a-run)). The counters are host-wide, so an
 observed write does not place the entry on the target device. Evidence without the records keeps the
 count-only result.
+
+Wherever the Gate 4 result, or a `FAIL` reason, describes fallbacks beyond capacity, it also says
+that a staging pool still held by the serving stack can cause them, so the counts alone do not show
+a device fault ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). It leaves that out
+when the split shows that no fallback followed an observed store write, because that direction
+already points to the store path, and when the only losses are misses.
 
 ### Gate 5 — envelope
 

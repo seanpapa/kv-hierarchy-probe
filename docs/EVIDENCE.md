@@ -107,7 +107,10 @@ names both counts and where to look first: the load path and the staging pool
 ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)) when every fallback followed an
 observed write, the store path when none did, both when mixed. The write counter is host-wide, so an
 observed write does not show that the entry reached the target device, and the result says so. The
-split never changes a verdict; a Gate 4 `FAIL` carries it in its reason.
+split never changes a verdict; a Gate 4 `FAIL` carries it in its reason. With or without the split,
+fallbacks beyond capacity are followed by a note that a held staging pool can cause them, except
+when the split points every fallback to the store path
+([METHOD, Gate 4](METHOD.md#gate-4--capacity-crossover)).
 
 **Gate 3 keeps every attempted outcome.** Adapter `0.4.0` reads the producer's per-attempt records
 and emits `calculation_basis: all_attempts`, signed `realized_reuse_saving_s`, and

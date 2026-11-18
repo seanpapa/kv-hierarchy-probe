@@ -407,8 +407,84 @@ class ReportDirection(unittest.TestCase):
         )
         self.assertEqual(gate["result"], "")
 
-    def test_a_failed_gate_without_a_split_keeps_its_reason(self) -> None:
+    def test_a_failed_gate_without_a_split_names_the_staging_pool(self) -> None:
         gate = _gate4(_document(_capacity(_counts(0, 3, 0))))
+        self.assertEqual(
+            gate["reason"],
+            "the upper tier overflowed but no retrieval was served by the target "
+            "tier; a staging pool still held by the serving stack can cause such "
+            "fallbacks (docs/FAILURE-CATALOG.md#staging-buffer-full), so these "
+            "counts alone do not show a device fault",
+        )
+
+
+class StagingPoolNote(unittest.TestCase):
+    """Fallbacks beyond capacity name the staging pool unless they point to the store path."""
+
+    NOTE = "a staging pool still held by the serving stack can cause such fallbacks"
+    NO_FAULT = "so these counts alone do not show a device fault"
+    LINK = "docs/FAILURE-CATALOG.md#staging-buffer-full"
+
+    def test_count_only_losses_name_the_pool_and_link_it(self) -> None:
+        """The retained baseline's shape: no split, 4 of 15 served, 8 fell back."""
+        counts = _counts(4, 8, 0)
+        counts["upper_tier_served"] = 3
+        counts["retrievals_expected"] = 15
+        gate = _gate4(_document(_capacity(counts)))
+        self.assertEqual(gate["status"], "PASS")
+        self.assertIn("served only 4 of 15 retrievals and 8 fell back", gate["result"])
+        self.assertIn("did not serve what overflowed", gate["result"])
+        self.assertIn(self.NOTE, gate["result"])
+        self.assertIn(self.NO_FAULT, gate["result"])
+        self.assertEqual(gate["result"].count(self.LINK), 1)
+
+    def test_load_path_links_the_catalog_once(self) -> None:
+        result = _gate4(_document(_capacity(_counts(4, 8, 0, observed=8))))["result"]
+        self.assertIn(self.NOTE, result)
+        self.assertEqual(result.count(self.LINK), 1)
+        self.assertTrue(result.endswith(self.NO_FAULT))
+
+    def test_mixed_names_the_pool(self) -> None:
+        result = _gate4(_document(_capacity(_counts(4, 5, 0, observed=2))))["result"]
+        self.assertIn(self.NOTE, result)
+        self.assertEqual(result.count(self.LINK), 1)
+
+    def test_store_path_leaves_the_pool_out(self) -> None:
+        result = _gate4(_document(_capacity(_counts(4, 3, 0, observed=0))))["result"]
+        self.assertNotIn(self.NOTE, result)
+        self.assertNotIn(self.NO_FAULT, result)
+
+    def test_misses_alone_leave_the_pool_out(self) -> None:
+        for observed in (None, 0):
+            with self.subTest(observed=observed):
+                counts = (
+                    _counts(4, 0, 2) if observed is None
+                    else _counts(4, 0, 2, observed=observed)
+                )
+                result = _gate4(_document(_capacity(counts)))["result"]
+                self.assertNotIn(self.NOTE, result)
+
+    def test_no_loss_and_no_overflow_leave_the_pool_out(self) -> None:
+        served = _gate4(_document(_capacity(_counts(4, 0, 0))))["result"]
+        self.assertNotIn(self.NOTE, served)
+
+    def test_a_failed_gate_names_the_pool_by_direction(self) -> None:
+        load = _gate4(_document(_capacity(_counts(0, 3, 0, observed=3))))
+        self.assertEqual(load["status"], "FAIL")
+        self.assertIn(self.NOTE, load["reason"])
+        self.assertEqual(load["reason"].count(self.LINK), 1)
+        self.assertEqual(load["result"], "")
+        store = _gate4(_document(_capacity(_counts(0, 3, 0, observed=0))))
+        self.assertEqual(store["status"], "FAIL")
+        self.assertNotIn(self.NOTE, store["reason"])
+
+    def test_a_failed_gate_without_counts_keeps_its_reason(self) -> None:
+        payload = _document(_capacity(_counts(0, 3, 0)))
+        capacity = payload["evidence"]["capacity"]
+        for name in ("classification_counts", "overflow_classification_counts"):
+            del capacity[name]
+        gate = _gate4(payload)
+        self.assertEqual(gate["status"], "FAIL")
         self.assertEqual(
             gate["reason"],
             "the upper tier overflowed but no retrieval was served by the target tier",

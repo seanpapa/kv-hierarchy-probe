@@ -55,8 +55,19 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   explanation and controlled CPU-cache-on/off comparison for staging-pool space held after a GDS
   load. That documentation-only change closed the cause-finding item and left the Gate 3 and Gate 4
   pass-condition review as follow-up work. The review is completed by the assessment change above.
-  ROADMAP Next now covers explaining the staging-pool mechanism in the Gate 4 result and in METHOD
-  for Gates 3 and 4, without another verdict change.
+  A further ROADMAP item then covered explaining the staging-pool mechanism in the Gate 4 result and
+  in METHOD for Gates 3 and 4, without another verdict change; the Gate 4 wording change below
+  completes it.
+- **Gate 4 names the staging pool where it can explain the losses.** When the Gate 4 result or a
+  `FAIL` reason describes fallbacks beyond the upper tier's capacity, it now adds that a staging pool
+  still held by the serving stack can cause them, so the counts alone do not show a device fault
+  ([FAILURE-CATALOG §13](docs/FAILURE-CATALOG.md#staging-buffer-full)). The note is left out when
+  the fallback split shows that none followed an observed store write, and when the only losses are
+  misses. METHOD now says that the same cause can show up in Gate 3 as `store_unattributed`
+  attempts, which can raise the reuses needed; their count shows how often, not how much of the
+  cost. Verdicts, claim state and exit codes are unchanged; the
+  2026-10-08 run keeps its verdict and counts, and its Gate 4 result gains the note. This closes
+  the ROADMAP item that followed the pass-condition review.
 
 ### Data contracts
 
@@ -67,6 +78,8 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 - **Changed, incompatible:** the assessment moves up one MINOR version, because two verdicts changed
   for documents the report already accepted. [VERSIONING](docs/VERSIONING.md#rules) now states that
   rule. The evidence schema and the ingest adapter are unchanged.
+- **Changed, compatible:** the assessment then moves up one PATCH version for the Gate 4 wording
+  above, a correction under that rule.
 
 ### Known limits
 
