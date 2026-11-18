@@ -102,8 +102,10 @@ _PASSING_CONFIDENCE = {"direct", "corroborating"}
 #: 0.7.0 changes two verdicts from PASS to UNPROVEN: a Gate 3 block that keeps
 #: successful samples only, and a Gate 4 sweep that overflowed without its
 #: classification counts. Documents with every attempt and the counts are
-#: judged as before.
-ASSESSMENT_VERSION = "0.7.0"
+#: judged as before. 0.7.1 adds the staging-pool cause to the Gate 4 text that
+#: describes fallbacks beyond capacity, unless every fallback points to the
+#: store path. Verdicts are unchanged.
+ASSESSMENT_VERSION = "0.7.1"
 _GATE_STATUSES = {"PASS", "FAIL", "UNPROVEN", "SKIP_UNSUPPORTED", "INVALID"}
 _FATAL_SCOPES = {"measurement"}
 
@@ -996,16 +998,16 @@ def _assess_v0_2(payload: dict[str, Any]) -> dict[str, Any]:
             capacity, overflow, tier_reached, str(payload.get("schema_version"))
         )
         if overflow and not tier_reached:
-            direction = (
-                _fallback_direction(capacity_counts[1])
-                if capacity_counts is not None
-                else ""
-            )
+            direction = ""
+            note = ""
+            if capacity_counts is not None:
+                direction = _fallback_direction(capacity_counts[1])
+                note = _staging_pool_note(capacity_counts[1], linked=bool(direction))
             gate4 = _gate_v0_2(
                 4,
                 "FAIL",
                 "the upper tier overflowed but no retrieval was served by the "
-                "target tier" + (f" — {direction}" if direction else ""),
+                "target tier" + (f" — {direction}" if direction else "") + note,
             )
         elif overflow and capacity_counts is None:
             gate4 = _gate_v0_2(
@@ -1358,6 +1360,33 @@ def _fallback_direction(beyond: dict[str, int]) -> str:
     )
 
 
+def _staging_pool_note(beyond: dict[str, int], linked: bool) -> str:
+    """Name the staging-pool cause where it can explain the fallbacks beyond capacity.
+
+    A staging pool still held by the serving stack makes a load fail without a
+    device fault (docs/FAILURE-CATALOG.md#staging-buffer-full). The note is left
+    out when there is no fallback beyond capacity, and when the fallback split
+    shows that none followed an observed store write: that direction already
+    points to the store path.
+
+    Args:
+        beyond: Beyond-capacity classification counts.
+        linked: Whether the text it follows already links the catalog entry.
+
+    Returns:
+        A clause starting with ``"; "``, or an empty string.
+    """
+    if beyond["fallback"] == 0:
+        return ""
+    if _FALLBACK_SPLIT[0] in beyond and beyond["fallback_store_write_observed"] == 0:
+        return ""
+    link = "" if linked else " (docs/FAILURE-CATALOG.md#staging-buffer-full)"
+    return (
+        "; a staging pool still held by the serving stack can cause such "
+        f"fallbacks{link}, so these counts alone do not show a device fault"
+    )
+
+
 def _capacity_result(
     overflow: bool, counts: tuple[dict[str, int], dict[str, int]] | None
 ) -> str:
@@ -1403,6 +1432,7 @@ def _capacity_result(
             f"served only {served} of {total} retrievals and {lost} fell back to "
             "recompute or missed: the tier is needed there but did not serve what "
             f"overflowed — {direction}"
+            + _staging_pool_note(beyond, linked=True)
         )
     return (
         f"the upper tier overflowed, but beyond its capacity the target tier served "
@@ -1413,6 +1443,7 @@ def _capacity_result(
         "no observed write from one with write activity observed but retrieval "
         "not established, and observed write activity alone does not show that "
         "an entry reached the target device"
+        + _staging_pool_note(beyond, linked=False)
     )
 
 

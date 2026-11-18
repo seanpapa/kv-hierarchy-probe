@@ -364,7 +364,8 @@ not change any verdict.
 later reuse latency in realized saving; `g4_capacity_sweep.py` classifies a zero-read,
 recompute-slow retrieval as `fallback`, keeps per-request store-write and retrieval-read records, and
 the Gate 4 result states the beyond-capacity counts and, from those records, how many fallbacks
-followed an observed store write of the same entry. Nothing in the engine's INFO log flags it.
+followed an observed store write of the same entry, and names this entry unless every fallback points
+to the store path. Nothing in the engine's INFO log flags it.
 
 **What you see.** The engine logs every store as complete — `Stored N out of N tokens` — at
 plausible throughput. Some of those stores leave no write on the device. Later, an entry the tier

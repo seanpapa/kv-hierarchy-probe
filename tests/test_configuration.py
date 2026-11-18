@@ -213,7 +213,7 @@ class ConfigurationFingerprintTest(unittest.TestCase):
         """Complete bindings to one verified configuration preserve a passing report."""
         assessment = assess_evidence(_load(EVIDENCE / "pass-all-attempts.json"))
 
-        self.assertEqual(assessment["assessment_version"], "0.7.0")
+        self.assertEqual(assessment["assessment_version"], "0.7.1")
         self.assertEqual(assessment["overall"], "PASS")
         self.assertEqual(assessment["configuration"]["id"], "config-a")
         self.assertEqual(assessment["performance_claims"], "allowed")
