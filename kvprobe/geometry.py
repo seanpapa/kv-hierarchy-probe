@@ -2,6 +2,7 @@
 """Derive standard-attention KV-cache geometry from a model configuration."""
 
 # Standard
+from collections import Counter
 from typing import Any
 
 
@@ -25,6 +26,91 @@ _DTYPE_ALIASES = {
     "fp32": "float32",
     "fp8": "float8_e4m3fn",
 }
+
+
+#: Config fields that, when present, mark a layer layout mixing attention kinds or
+#: state-space layers: Qwen3-Next (``full_attention_interval``), Nemotron-H
+#: (``hybrid_override_pattern``), Jamba (``attn_layer_period``) and Gemma 3
+#: (``sliding_window_pattern``). Explicit ``layer_types`` and Gemma 2's
+#: ``cache_implementation: "hybrid"`` are checked separately.
+_HYBRID_MARKERS = (
+    "full_attention_interval",
+    "hybrid_override_pattern",
+    "attn_layer_period",
+    "sliding_window_pattern",
+)
+
+
+def _refuse_unsupported_layout(config: dict[str, Any], where: str) -> None:
+    """Validate declared layer types and refuse unsupported cache layouts.
+
+    The standard formula counts every layer as a full-attention layer and has
+    no term for per-layer recurrent state, so for a hybrid model its byte count
+    need not match what the stack stores. An explicit ``layer_types`` list
+    must name only ``full_attention``, with one entry per declared layer.
+    Missing or null ``layer_types`` retains the standard-formula assumption;
+    it does not prove the model has no other cache state. Known hybrid fields
+    and ``cache_implementation: "hybrid"`` are refused independently.
+
+    Args:
+        config: Parsed model configuration block to inspect.
+        where: Name of that block in the message, such as ``"config"`` or
+            ``"text_config"``.
+
+    Raises:
+        GeometryError: If declared layer types are malformed, inconsistent,
+            or unsupported, or a known hybrid field is set.
+    """
+    layer_types = config.get("layer_types")
+    if layer_types is not None:
+        if (
+            not isinstance(layer_types, list)
+            or not layer_types
+            or any(not isinstance(kind, str) or not kind for kind in layer_types)
+        ):
+            raise GeometryError(
+                f"{where}.layer_types must be a non-empty list of layer-type names"
+            )
+        layers = config.get("num_hidden_layers")
+        if (
+            isinstance(layers, int)
+            and not isinstance(layers, bool)
+            and layers > 0
+            and len(layer_types) != layers
+        ):
+            raise GeometryError(
+                f"{where}.layer_types has {len(layer_types)} entries but "
+                f"{where}.num_hidden_layers is {layers}"
+            )
+        kinds = Counter(layer_types)
+        if len(kinds) > 1:
+            ordered = sorted(kinds.items(), key=lambda item: (-item[1], item[0]))
+            mix = ", ".join(f"{count} {kind}" for kind, count in ordered)
+            raise GeometryError(
+                f"hybrid layer layout ({where}.layer_types: {mix}): the standard formula "
+                "counts every layer as full attention and has no term for per-layer state, "
+                "so it cannot give this model's expected bytes"
+            )
+        if set(kinds) != {"full_attention"}:
+            kind, count = next(iter(kinds.items()))
+            raise GeometryError(
+                f"unsupported layer layout ({where}.layer_types: {count} {kind}): "
+                "the standard formula supports only full_attention layers; "
+                "this layout's stored bytes require a separate derivation"
+            )
+    if config.get("cache_implementation") == "hybrid":
+        raise GeometryError(
+            f'hybrid layer layout ({where}.cache_implementation is "hybrid"): the standard '
+            "formula counts every layer as full attention and has no term for per-layer state, "
+            "so it cannot give this model's expected bytes"
+        )
+    for marker in _HYBRID_MARKERS:
+        if config.get(marker) is not None:
+            raise GeometryError(
+                f"hybrid layer layout ({where}.{marker} is set): the standard formula "
+                "counts every layer as full attention and has no term for per-layer state, "
+                "so it cannot give this model's expected bytes"
+            )
 
 
 def _positive_integer(config: dict[str, Any], name: str) -> int:
@@ -100,7 +186,11 @@ def derive_geometry(
     dtype_bytes`` per token. Runtime settings are explicit because a model
     file cannot prove the dtype or parallelism selected by the serving engine.
     Pipeline parallelism other than one is refused because the layer placement
-    per rank is required for an exact result.
+    per rank is required for an exact result. Declared layer types other than
+    ``full_attention`` and known hybrid fields, at the top level or in
+    ``text_config``, are refused. Absent or null layer types retain the
+    standard-formula assumption, not a verified layout. A config whose layer
+    fields sit only under ``text_config`` is refused with a message naming it.
 
     ``num_attention_heads`` may be absent when both ``num_key_value_heads``
     and ``head_dim`` are given, because neither is then derived from it; the
@@ -129,6 +219,18 @@ def derive_geometry(
         raise GeometryError(
             "MLA geometry is not supported by the standard KV-head formula"
         )
+    _refuse_unsupported_layout(model_config, "config")
+    text_config = model_config.get("text_config")
+    if isinstance(text_config, dict):
+        _refuse_unsupported_layout(text_config, "text_config")
+        if (
+            model_config.get("num_hidden_layers") is None
+            and text_config.get("num_hidden_layers") is not None
+        ):
+            raise GeometryError(
+                "num_hidden_layers is under text_config, not at the top level: this "
+                "command reads a text model's own config, not a wrapper around it"
+            )
 
     chunk_tokens = _runtime_positive_integer(chunk_tokens, "chunk_tokens")
     tensor_parallel_size = _runtime_positive_integer(
@@ -236,7 +338,7 @@ def derive_geometry(
         architectures = []
 
     return {
-        "geometry_version": "0.1.1",
+        "geometry_version": "0.2.0",
         "model": {
             "architectures": architectures,
             "num_hidden_layers": layers,
