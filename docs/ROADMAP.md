@@ -18,7 +18,7 @@ names and internal paths.
 counts the retrievals that fell back beyond capacity but does not say that a staging pool still held
 by the serving stack can produce them without a device fault
 ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). METHOD does not yet say that the
-same cause shows up in Gate 3 as more `store_unattributed` attempts, which raises the reuses needed.
+same cause can show up in Gate 3 as more `store_unattributed` attempts, which raises the reuses needed.
 
 - **Closes when:** the Gate 4 result names that cause where the evidence does not point to the store
   path, METHOD states the direction of the Gate 3 effect, and no verdict changes.

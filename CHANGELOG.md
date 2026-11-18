@@ -55,8 +55,8 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   explanation and controlled CPU-cache-on/off comparison for staging-pool space held after a GDS
   load. That documentation-only change closed the cause-finding item and left the Gate 3 and Gate 4
   pass-condition review as follow-up work. The review is completed by the assessment change above.
-  ROADMAP Next now covers explaining the staging-pool mechanism in the Gate 3 and Gate 4 results
-  and method, without another verdict change.
+  ROADMAP Next now covers explaining the staging-pool mechanism in the Gate 4 result and in METHOD
+  for Gates 3 and 4, without another verdict change.
 
 ### Data contracts
 
