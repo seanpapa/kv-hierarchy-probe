@@ -100,7 +100,7 @@ def _beyond(block: dict[str, Any]) -> dict[str, int]:
 
 def _document(capacity: dict[str, Any]) -> dict[str, Any]:
     """Return the all-pass example at schema 0.3.2 with this capacity block."""
-    document = json.loads((EXAMPLES / "pass-v0.3.json").read_text(encoding="utf-8"))
+    document = json.loads((EXAMPLES / "pass-all-attempts.json").read_text(encoding="utf-8"))
     document["schema_version"] = "0.3.2"
     document["evidence"]["capacity"] = capacity
     return document

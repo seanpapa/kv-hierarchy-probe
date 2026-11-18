@@ -211,9 +211,9 @@ class ConfigurationFingerprintTest(unittest.TestCase):
 
     def test_single_configuration_allows_v0_3_report(self) -> None:
         """Complete bindings to one verified configuration preserve a passing report."""
-        assessment = assess_evidence(_load(EVIDENCE / "pass-v0.3.json"))
+        assessment = assess_evidence(_load(EVIDENCE / "pass-all-attempts.json"))
 
-        self.assertEqual(assessment["assessment_version"], "0.6.4")
+        self.assertEqual(assessment["assessment_version"], "0.7.0")
         self.assertEqual(assessment["overall"], "PASS")
         self.assertEqual(assessment["configuration"]["id"], "config-a")
         self.assertEqual(assessment["performance_claims"], "allowed")
@@ -249,7 +249,7 @@ class ConfigurationFingerprintTest(unittest.TestCase):
 
     def test_incomplete_request_bindings_are_malformed(self) -> None:
         """Every measured request must be tied to configuration identity."""
-        payload = _load(EVIDENCE / "pass-v0.3.json")
+        payload = _load(EVIDENCE / "pass-all-attempts.json")
         payload["bindings"]["attribution_requests"] = []
 
         with self.assertRaises(EvidenceError):
@@ -257,7 +257,7 @@ class ConfigurationFingerprintTest(unittest.TestCase):
 
     def test_binding_objects_reject_unversioned_fields(self) -> None:
         """An ignored binding field must not silently change comparison semantics."""
-        payload = _load(EVIDENCE / "pass-v0.3.json")
+        payload = _load(EVIDENCE / "pass-all-attempts.json")
         payload["bindings"]["attribution_requests"][0]["host_hint"] = "private"
 
         with self.assertRaises(EvidenceError):

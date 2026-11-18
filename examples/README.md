@@ -56,10 +56,10 @@ format — a platform without PCI addressing stays inside the contract.
 | File | Verdict | Why it is synthetic |
 |---|---|---|
 | `evidence/pass-all-attempts.json` | `PASS`, claims allowed | The all-pass path in the current contract: Gate 3 counts all ten admission attempts (six target-tier, one fallback, three store-unattributed). No measured document bundled here covers all five gates (see below). The first-visit demo uses it. |
-| `evidence/pass-v0.3.json` | `PASS`, claims allowed | The same all-pass path with a legacy Gate 3 block (successful samples only); its Gate 3 result reads `optimistic estimate`. Kept so older evidence stays covered. |
+| `evidence/admission-successful-samples-only.json` | `UNPROVEN` | The same document with a Gate 3 block of successful samples only: a store cost without the per-attempt outcomes. Gate 3 is `UNPROVEN` and no performance claim is allowed, whatever the other four gates show. |
 | `evidence/phantom-tier-framework-hit.json` | `FAIL` | Ingested from the synthetic block-tier fixture [`phantom-framework-hit.json`](../tests/fixtures/external/block-tier/phantom-framework-hit.json): the framework reported hits while the tier's device read nothing, so Gate 1 is a measured violation. Not a measurement. |
 | `evidence/mixed-configuration-v0.3.json` | `INVALID` | Evidence bound to two verified configurations: a valid record with an unusable verdict. |
-| `evidence/pass-capabilities.json` | `PASS` | Synthetic configuration-bound passing evidence for the public reader. |
+| `evidence/pass-capabilities.json` | `PASS` | Synthetic configuration-bound passing evidence for the public reader, with an all-attempt Gate 3 block and Gate 4 classification counts. |
 | `evidence/partial-unsupported.json` | `PARTIAL` | A gate the host cannot support is skipped, not failed. Gate 1 is unsupported here, so Gates 2 and 3 are skipped too: their timings cannot be tier-verified. |
 | `evidence/invalid-allocation.json` | `INVALID` | A fatal measurement observation invalidates the record. |
 

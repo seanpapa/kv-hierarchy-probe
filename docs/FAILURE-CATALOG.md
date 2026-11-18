@@ -434,7 +434,9 @@ Because the write counters are host-wide, that alone does not prove the entries 
 device.
 
 **Invalidates.** Admission economics computed from successful attempts only; any "the tier served the overflow"
-claim without the beyond-capacity counts; engine store throughput as evidence of a write.
+claim without the beyond-capacity counts; engine store throughput as evidence of a write. The report
+judges the first two `UNPROVEN` ([METHOD, Gate 3](METHOD.md#gate-3--admission-cost) and
+[Gate 4](METHOD.md#gate-4--capacity-justification)).
 
 **Generalization [principle].** A transfer that needs a fixed staging area and fails softly when the
 area is full looks like success to every signal except a counter on the device. Size the area with

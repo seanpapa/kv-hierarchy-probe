@@ -21,10 +21,29 @@ EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "evidence"
 
 
 def _pass() -> dict[str, Any]:
-    """Return a copy of the hand-written all-pass v0.3 example."""
+    """Return a copy of the hand-written all-pass example."""
     return copy.deepcopy(
-        json.loads((EXAMPLES / "pass-v0.3.json").read_text(encoding="utf-8"))
+        json.loads((EXAMPLES / "pass-all-attempts.json").read_text(encoding="utf-8"))
     )
+
+
+def _successful_samples() -> dict[str, Any]:
+    """Return a copy of the example whose Gate 3 keeps successful samples only."""
+    return copy.deepcopy(
+        json.loads(
+            (EXAMPLES / "admission-successful-samples-only.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+
+
+def _without_capacity_counts() -> dict[str, Any]:
+    """Return the all-pass example with only the two Gate 4 booleans."""
+    payload = _pass()
+    for name in ("classification_counts", "overflow_classification_counts"):
+        del payload["evidence"]["capacity"][name]
+    return payload
 
 
 def _gate(assessment: dict[str, Any], gate_id: int) -> dict[str, Any]:
@@ -39,6 +58,7 @@ class GateResultTests(unittest.TestCase):
         """Retrieval slower than recompute passes Gate 2 and says so."""
         payload = _pass()
         payload["evidence"]["break_even"]["retrieval_ttft_s"] = [0.9, 0.9, 0.9]
+        payload["evidence"]["admission"]["realized_reuse_saving_s"] = -0.6
         assessment = assess_evidence(payload)
         self.assertEqual(_gate(assessment, 2)["status"], "PASS")
         self.assertIn("offloading efficiency is low", _gate(assessment, 2)["result"])
@@ -57,7 +77,7 @@ class GateResultTests(unittest.TestCase):
     def test_admission_reason_limits_the_write_counter_scope(self) -> None:
         """Gate 3 must not turn a host-wide write signal into device attribution."""
         gate = _gate(assess_evidence(_pass()), 3)
-        self.assertIn("host-wide nvidia-fs write activity", gate["reason"])
+        self.assertIn("host-wide nvidia-fs activity", gate["reason"])
         self.assertIn("not target-device exclusivity", gate["reason"])
         self.assertNotIn("device-confirmed", gate["reason"])
 
@@ -292,26 +312,126 @@ class GateResultTests(unittest.TestCase):
         self.assertIn("does not show that an entry reached the target device", result)
         self.assertNotIn("show which failed", result)
 
-    def test_admission_result_states_its_sample_count(self) -> None:
-        """Most stores dropped: the cost is stated as low-confidence."""
-        payload = _pass()
+    def test_successful_sample_admission_is_unproven(self) -> None:
+        """A store cost from successful samples only opens no performance claim."""
+        assessment = assess_evidence(_successful_samples())
+        gate = _gate(assessment, 3)
+        self.assertEqual(gate["status"], "UNPROVEN")
+        self.assertIn("successful samples only", gate["reason"])
+        self.assertIn("calculation_basis all_attempts", gate["reason"])
+        self.assertEqual(gate["result"], "")
+        self.assertEqual(
+            [_gate(assessment, gate_id)["status"] for gate_id in (1, 2, 4, 5)],
+            ["PASS"] * 4,
+        )
+        self.assertEqual(assessment["overall"], "UNPROVEN")
+        self.assertEqual(assessment["performance_claims"], "suppressed")
+        self.assertNotIn("performance", assessment)
+        self.assertNotIn(" s vs ", _gate(assessment, 2)["result"])
+
+    def test_successful_sample_admission_is_unproven_however_many_samples(
+        self,
+    ) -> None:
+        """No sample count makes a successful-sample block the realized decision."""
+        for counts in (
+            {"requested": 10, "valid": 10, "dropped": 0},
+            {"requested": 10, "valid": 3, "dropped": 7},
+        ):
+            with self.subTest(counts=counts):
+                payload = _successful_samples()
+                payload["evidence"]["admission"]["sample_counts"] = counts
+                self.assertEqual(
+                    _gate(assess_evidence(payload), 3)["status"], "UNPROVEN"
+                )
+
+    def test_successful_sample_reason_states_its_sample_count(self) -> None:
+        """Most stores dropped: the reason says how few the cost rests on."""
+        payload = _successful_samples()
         payload["evidence"]["admission"]["sample_counts"] = {
             "requested": 10,
             "valid": 3,
             "dropped": 7,
         }
-        result = _gate(assess_evidence(payload), 3)["result"]
-        self.assertIn("from 3 of 10 samples, 7 dropped", result)
-        self.assertIn("low-confidence", result)
+        reason = _gate(assess_evidence(payload), 3)["reason"]
+        self.assertIn("from 3 of 10 samples, 7 dropped", reason)
+        self.assertIn("low-confidence", reason)
 
-    def test_legacy_admission_result_names_its_optimistic_basis(self) -> None:
-        """Successful-sample evidence must not read as the realized decision."""
-        result = _gate(assess_evidence(_pass()), 3)["result"]
-        self.assertIn("legacy successful-sample basis", result)
-        self.assertIn("not the realized decision", result)
+    def test_gate2_shortfall_is_named_before_the_admission_basis(self) -> None:
+        """Without an established saving, Gate 3 says so whatever its basis."""
+        payload = _successful_samples()
+        payload["evidence"]["attribution"]["requests"][0]["observed_bytes"] = 0
+        gate = _gate(assess_evidence(payload), 3)
+        self.assertEqual(gate["status"], "UNPROVEN")
+        self.assertIn("saving per reuse is not established", gate["reason"])
+
+    def test_overflow_without_counts_is_unproven(self) -> None:
+        """Two booleans cannot show how much of the overflow the tier served."""
+        assessment = assess_evidence(_without_capacity_counts())
+        gate = _gate(assessment, 4)
+        self.assertEqual(gate["status"], "UNPROVEN")
+        self.assertIn("at least one retrieval", gate["reason"])
+        self.assertIn("overflow_classification_counts", gate["reason"])
+        self.assertEqual(gate["result"], "")
+        self.assertEqual(assessment["overall"], "UNPROVEN")
+        self.assertEqual(assessment["performance_claims"], "suppressed")
+        self.assertNotIn("performance", assessment)
+
+    def test_no_overflow_without_counts_is_still_a_result(self) -> None:
+        """A sweep that never overflowed claims nothing the counts would back."""
+        payload = _without_capacity_counts()
+        payload["evidence"]["capacity"]["upper_tier_overflow_observed"] = False
+        payload["evidence"]["capacity"]["target_tier_served"] = False
+        assessment = assess_evidence(payload)
+        gate = _gate(assessment, 4)
+        self.assertEqual(gate["status"], "PASS")
+        self.assertIn("necessity is not shown", gate["result"])
+        self.assertEqual(assessment["overall"], "PASS")
+
+    def test_overflow_without_counts_or_tier_service_still_fails(self) -> None:
+        """No retrieval served by the tier is a failure with or without counts."""
+        payload = _without_capacity_counts()
+        payload["evidence"]["capacity"]["target_tier_served"] = False
+        assessment = assess_evidence(payload)
+        self.assertEqual(_gate(assessment, 4)["status"], "FAIL")
+        self.assertEqual(assessment["overall"], "FAIL")
+
+    def test_every_attempt_and_every_count_keep_a_lossy_run_passing(self) -> None:
+        """Retained failures are findings: the measurement is valid and says so."""
+        payload = _pass()
+        payload["evidence"]["admission"].update(
+            {
+                "realized_reuse_saving_s": 0.2,
+                "attempt_counts": {
+                    "attempted": 10,
+                    "target_tier": 5,
+                    "fallback": 0,
+                    "store_unattributed": 5,
+                    "unattributed": 0,
+                },
+            }
+        )
+        counts = {
+            "retrievals_expected": 15,
+            "upper_tier_served": 3,
+            "target_tier_served": 4,
+            "fallback": 8,
+            "miss": 0,
+        }
+        payload["evidence"]["capacity"]["classification_counts"] = dict(counts)
+        payload["evidence"]["capacity"]["overflow_classification_counts"] = dict(counts)
+        assessment = assess_evidence(payload)
+        self.assertEqual(assessment["overall"], "PASS")
+        self.assertEqual(assessment["performance_claims"], "allowed")
+        self.assertIn(
+            "all 10 attempts included: 5 target-tier, 0 fallback, "
+            "5 store-unattributed",
+            _gate(assessment, 3)["result"],
+        )
+        self.assertIn("served only 4 of 15", _gate(assessment, 4)["result"])
+        self.assertIn("did not serve what overflowed", _gate(assessment, 4)["result"])
 
     def test_admission_sample_counts_must_add_up(self) -> None:
-        payload = _pass()
+        payload = _successful_samples()
         payload["evidence"]["admission"]["sample_counts"] = {
             "requested": 10,
             "valid": 3,

@@ -638,7 +638,7 @@ GPU1    SYS      X      32-63
 
     def test_passing_evidence_allows_performance_claims(self) -> None:
         """All five gates permit the report to expose performance data."""
-        result = _run("report", str(EXAMPLES / "pass-v0.3.json"), "--format", "json")
+        result = _run("report", str(EXAMPLES / "pass-all-attempts.json"), "--format", "json")
 
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
@@ -654,7 +654,7 @@ GPU1    SYS      X      32-63
         self.assertIn("exit 1: overall PARTIAL", result.stderr)
         self.assertIn("not an installation or runtime error", result.stderr)
         self.assertNotIn("exit 1:", result.stdout)
-        passing = _run("report", str(EXAMPLES / "pass-v0.3.json"))
+        passing = _run("report", str(EXAMPLES / "pass-all-attempts.json"))
         self.assertEqual(passing.returncode, 0)
         self.assertNotIn("exit", passing.stderr)
 
@@ -670,6 +670,24 @@ GPU1    SYS      X      32-63
         self.assertEqual(result.returncode, 1, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report["gates"][0]["status"], "UNPROVEN")
+        self.assertEqual(report["overall"], "UNPROVEN")
+        self.assertEqual(report["performance_claims"], "suppressed")
+        self.assertNotIn("performance", report)
+        self.assertNotIn("reuses to repay", json.dumps(report))
+
+    def test_successful_sample_admission_suppresses_performance_claims(self) -> None:
+        """A Gate 3 block of successful samples only leaves the run unproven."""
+        result = _run(
+            "report",
+            str(EXAMPLES / "admission-successful-samples-only.json"),
+            "--format",
+            "json",
+        )
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("exit 1: overall UNPROVEN", result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["gates"][2]["status"], "UNPROVEN")
         self.assertEqual(report["overall"], "UNPROVEN")
         self.assertEqual(report["performance_claims"], "suppressed")
         self.assertNotIn("performance", report)

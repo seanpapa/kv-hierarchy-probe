@@ -38,7 +38,7 @@ class EvidenceVerdictTests(unittest.TestCase):
         """Only five passing gates expose numeric performance."""
         assessment = assess_evidence(_load("pass-capabilities.json"))
 
-        self.assertEqual(assessment["assessment_version"], "0.6.4")
+        self.assertEqual(assessment["assessment_version"], "0.7.0")
         self.assertEqual(assessment["overall"], "PASS")
         self.assertEqual(assessment["performance_claims"], "allowed")
         self.assertEqual(
@@ -59,7 +59,11 @@ class EvidenceVerdictTests(unittest.TestCase):
     def test_measured_failure_takes_precedence_over_unsupported_gate(self) -> None:
         """A partial run with a measured failure must have an overall failure."""
         payload = copy.deepcopy(_load("partial-unsupported.json"))
-        payload["evidence"]["capacity"]["target_tier_served"] = False
+        capacity = payload["evidence"]["capacity"]
+        capacity["target_tier_served"] = False
+        for name in ("classification_counts", "overflow_classification_counts"):
+            capacity[name]["fallback"] = capacity[name]["target_tier_served"]
+            capacity[name]["target_tier_served"] = 0
 
         assessment = assess_evidence(payload)
 
