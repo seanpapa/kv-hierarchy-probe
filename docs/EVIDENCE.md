@@ -82,10 +82,13 @@ to its working set, and retains totals for the whole sweep and for rows beyond t
 `upper_tier_capacity_bytes`. Overflow comes from that declared capacity boundary, not from the
 first successful NVMe hit; this preserves the failure case where the working set exceeded the
 upper tier but the target tier served nothing. Evidence written by an older adapter remains
-readable, but it has no retained classification totals: when its sweep exceeded the upper tier's
-capacity, Gate 4 is `UNPROVEN`, because two booleans do not show how much of the overflow the target
-tier served. The report's Gate 4 result states the beyond-capacity counts: how many
-retrievals the target tier served and how many fell back or missed.
+readable, but it has no retained classification totals. If its sweep exceeded the upper tier's
+capacity and recorded target-tier service, Gate 4 is `UNPROVEN`: two booleans do not show how much
+of the overflow the target tier served. If the sweep overflowed and the target tier served
+nothing, Gate 4 remains `FAIL`, with or without counts. A sweep that never overflowed can still
+pass without counts; its result says that necessity was not shown. When counts are present, the
+Gate 4 result states how many beyond-capacity retrievals the target tier served and how many fell
+back or missed.
 
 **Gate 4 splits `fallback` when the producer kept per-request records.** When every row carries
 `stores` and `retrievals`, ingest reads each entry's history across the sweep. A fallback
@@ -165,7 +168,7 @@ configuration consistency, not independently captured model/image identity.
 | `attribution.requests` | Correctness, attributed source, external-evidence flag, bytes observed | 1 — Serving Tier Verification |
 | `break_even` | Non-empty retrieval and recompute TTFT samples | 2 — Single-hit retrieval break-even |
 | `admission` | Store cost, expected reuse count, realized saving and complete attempt-outcome counts (`calculation_basis: all_attempts`); without the last two Gate 3 is `UNPROVEN` | 3 — Admission cost |
-| `capacity` | Whether upper-tier overflow and target-tier service were observed, and the classification counts; without the counts a sweep that overflowed is `UNPROVEN` | 4 — Capacity justification |
+| `capacity` | Overflow and target-tier service flags, plus classification counts. Overflow with service but no counts is `UNPROVEN`; overflow with no service is `FAIL` even without counts. No overflow: counts are not required to pass | 4 — Capacity justification |
 | `capacity.*classification_counts.fallback_store_write_*` | Optional (`0.3.2`): `fallback` split by whether the entry's store write was observed earlier in the sweep | 4 — named in the result |
 | `envelope.levels` | Requests and target-tier-served requests at each concurrency | 5 — Operating envelope |
 | `envelope.request_cacheable_tokens` | Optional (`0.3.1`): cacheable tokens per request, one value for the whole sweep | 5 — named in the result |

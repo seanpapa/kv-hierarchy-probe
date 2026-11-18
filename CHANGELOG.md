@@ -36,9 +36,11 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 - **Gate 3 and Gate 4 no longer pass on incomplete evidence.** A Gate 3 block that keeps successful
   samples only — a store cost without the per-attempt outcomes — is now `UNPROVEN`. It used to pass
   with its result labelled an optimistic estimate. A Gate 4 sweep that exceeded the upper tier's
-  capacity without its classification counts is now `UNPROVEN`. It used to pass and say the tier
-  served the overflow, although two booleans show only that at least one retrieval was served.
-  Either one withholds performance claims and makes `report` exit 1
+  capacity and recorded target-tier service without its classification counts is now `UNPROVEN`.
+  It used to pass and say the tier served the overflow, although two booleans show only that at
+  least one retrieval was served. If the upper tier overflowed and the target tier served nothing,
+  Gate 4 remains `FAIL`, with or without counts.
+  Both newly unproven shapes withhold performance claims and make `report` exit 1
   ([METHOD, Gate 3](docs/METHOD.md#gate-3--admission-cost) and
   [Gate 4](docs/METHOD.md#gate-4--capacity-justification)). Documents that keep every attempt and
   the counts are judged as before; the verdict and results of the 2026-10-08 run in
@@ -51,9 +53,10 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   the counts; both keep their verdicts ([examples](examples/README.md)).
 - [FAILURE-CATALOG](docs/FAILURE-CATALOG.md#staging-buffer-full) §13 records the source-supported
   explanation and controlled CPU-cache-on/off comparison for staging-pool space held after a GDS
-  load. The ROADMAP item that asked for the cause is closed. This documentation-only change does not
-  alter the Gate 3 or Gate 4 pass conditions; reviewing whether those conditions remain sufficient
-  is retained as the next ROADMAP item.
+  load. That documentation-only change closed the cause-finding item and left the Gate 3 and Gate 4
+  pass-condition review as follow-up work. The review is completed by the assessment change above.
+  ROADMAP Next now covers explaining the staging-pool mechanism in the Gate 3 and Gate 4 results
+  and method, without another verdict change.
 
 ### Data contracts
 

@@ -231,9 +231,9 @@ still has room, then sweep the working set past the upper tier's capacity.
 tier, fell back to recompute, or missed. The declared upper-tier capacity is compared with each
 working-set size independently of whether the target tier produced a hit. The gate fails when the
 sweep exceeded that capacity and this tier served nothing: entries spilled but the tier did not
-serve them. A sweep that exceeded that capacity must also record its classification counts. Without
-them the evidence says only that at least one retrieval was served by this tier, not how much of the
-overflow it served, and the gate is `UNPROVEN`.
+serve them, with or without counts. If the sweep exceeded that capacity and this tier served
+at least one retrieval, classification counts are also required to pass. Without them the
+evidence does not show how much of the overflow it served, and the gate is `UNPROVEN`.
 
 **Reports:** whether the tier was needed. While the tier above always has room, this tier is never the
 best choice — it is slower than the tier above and adds only operational risk; the result says its
