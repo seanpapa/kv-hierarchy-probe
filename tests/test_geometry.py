@@ -30,6 +30,24 @@ def _qwen_config() -> dict[str, object]:
     }
 
 
+def _qwen35_wrapper_config() -> dict[str, object]:
+    """Return the shape of a Qwen3.5 config: a wrapper with a hybrid text_config."""
+    return {
+        "architectures": ["Qwen3_5ForConditionalGeneration"],
+        "model_type": "qwen3_5",
+        "text_config": {
+            "model_type": "qwen3_5_text",
+            "hidden_size": 4096,
+            "num_attention_heads": 16,
+            "num_hidden_layers": 32,
+            "num_key_value_heads": 4,
+            "head_dim": 256,
+            "dtype": "bfloat16",
+            "layer_types": (["linear_attention"] * 3 + ["full_attention"]) * 8,
+        },
+    }
+
+
 class _FakeResponse:
     """Provide the bounded HTTP response surface used by model resolution."""
 
@@ -183,7 +201,7 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         source = payload["model"]["config_source"]
-        self.assertEqual(payload["geometry_version"], "0.1.1")
+        self.assertEqual(payload["geometry_version"], "0.2.0")
         self.assertEqual(payload["model"]["input_source"], "model")
         self.assertEqual(source["kind"], "local_model_directory")
         self.assertEqual(source["model_name"], "Qwen2.5-32B-Instruct")
@@ -242,6 +260,204 @@ class GeometryTest(unittest.TestCase):
         """The model argument must not become an arbitrary URL fetcher."""
         with self.assertRaisesRegex(ModelSourceError, "invalid model reference"):
             load_model_reference("https://example.com/model")
+
+    def test_rejects_mixed_layer_types_with_their_counts(self) -> None:
+        """A hybrid layout must not get the all-layer full-attention number."""
+        hybrid = _qwen_config() | {
+            "layer_types": ["linear_attention"] * 48 + ["full_attention"] * 16
+        }
+        with self.assertRaisesRegex(
+            GeometryError,
+            r"hybrid layer layout \(config\.layer_types: 48 linear_attention, "
+            r"16 full_attention\)",
+        ):
+            derive_geometry(hybrid, chunk_tokens=256)
+
+    def test_rejects_uniform_non_full_attention_layers(self) -> None:
+        """A uniform layout is not necessarily the full-attention KV layout."""
+        for kind in ("linear_attention", "sliding_attention", "mamba", "unknown"):
+            with self.subTest(kind=kind):
+                config = _qwen_config() | {"layer_types": [kind] * 64}
+                with self.assertRaisesRegex(
+                    GeometryError, "supports only full_attention layers"
+                ):
+                    derive_geometry(config, chunk_tokens=256)
+
+    def test_rejects_uniform_non_full_layers_in_text_config(self) -> None:
+        """A wrapper cannot hide unsupported uniform layers behind text_config."""
+        config = _qwen_config() | {
+            "text_config": {
+                "num_hidden_layers": 32,
+                "layer_types": ["linear_attention"] * 32,
+            }
+        }
+        with self.assertRaisesRegex(
+            GeometryError, r"unsupported layer layout \(text_config.layer_types"
+        ):
+            derive_geometry(config, chunk_tokens=256)
+
+    def test_rejects_malformed_explicit_layer_types(self) -> None:
+        """An invalid layer declaration cannot stand in for a supported layout."""
+        for kinds in ([], "full_attention", {}, 1, True, [None] * 64, [""] * 64):
+            with self.subTest(layer_types=kinds):
+                config = _qwen_config() | {"layer_types": kinds}
+                with self.assertRaisesRegex(
+                    GeometryError, "non-empty list of layer-type names"
+                ):
+                    derive_geometry(config, chunk_tokens=256)
+
+    def test_rejects_layer_types_count_mismatch(self) -> None:
+        """One full-attention label cannot certify all the model's layers."""
+        for count in (1, 63, 65):
+            with self.subTest(count=count):
+                config = _qwen_config() | {"layer_types": ["full_attention"] * count}
+                with self.assertRaisesRegex(
+                    GeometryError, rf"has {count} entries.*num_hidden_layers is 64"
+                ):
+                    derive_geometry(config, chunk_tokens=256)
+
+    def test_absent_or_null_layer_types_keep_standard_formula(self) -> None:
+        """Legacy configs without an explicit layout keep the same arithmetic."""
+        config = _qwen_config()
+        self.assertEqual(
+            derive_geometry(config | {"layer_types": None}, chunk_tokens=256),
+            derive_geometry(config, chunk_tokens=256),
+        )
+
+    def test_rejects_each_known_hybrid_field(self) -> None:
+        """Hybrid families that mark their layout with a field are refused."""
+        for marker, value in (
+            ("full_attention_interval", 4),
+            ("hybrid_override_pattern", "M-M-M*-"),
+            ("attn_layer_period", 8),
+            ("sliding_window_pattern", 6),
+        ):
+            with self.subTest(marker=marker):
+                with self.assertRaisesRegex(
+                    GeometryError, rf"hybrid layer layout \(config\.{marker} is set\)"
+                ):
+                    derive_geometry(_qwen_config() | {marker: value}, chunk_tokens=256)
+
+    def test_rejects_hybrid_cache_implementation_only(self) -> None:
+        """Alternating sliding and full layers declared only by the cache type are refused."""
+        alternating = _qwen_config() | {
+            "cache_implementation": "hybrid",
+            "sliding_window": 4096,
+        }
+        with self.assertRaisesRegex(
+            GeometryError,
+            r'hybrid layer layout \(config\.cache_implementation is "hybrid"\)',
+        ):
+            derive_geometry(alternating, chunk_tokens=256)
+        other = _qwen_config() | {"cache_implementation": "static"}
+        self.assertEqual(
+            derive_geometry(other, chunk_tokens=256),
+            derive_geometry(_qwen_config(), chunk_tokens=256),
+        )
+
+    def test_rejects_hybrid_text_config_inside_a_wrapper(self) -> None:
+        """A Qwen3.5-shaped wrapper is refused for its layout, not a missing field."""
+        with self.assertRaisesRegex(
+            GeometryError,
+            r"text_config\.layer_types: 24 linear_attention, 8 full_attention",
+        ):
+            derive_geometry(_qwen35_wrapper_config(), chunk_tokens=256)
+
+    def test_flattened_hybrid_text_config_is_refused_too(self) -> None:
+        """The same layer fields given as a flat config do not slip through."""
+        flat = dict(_qwen35_wrapper_config()["text_config"])
+        with self.assertRaisesRegex(GeometryError, "hybrid layer layout"):
+            derive_geometry(flat, chunk_tokens=256)
+
+    def test_wrapper_without_top_level_layers_names_text_config(self) -> None:
+        """A standard text_config under a wrapper gets a message that says where."""
+        wrapper = {
+            "architectures": ["SomeVisionLanguageModel"],
+            "text_config": _qwen_config(),
+        }
+        with self.assertRaisesRegex(
+            GeometryError, "num_hidden_layers is under text_config"
+        ):
+            derive_geometry(wrapper, chunk_tokens=256)
+
+    def test_uniform_layer_types_and_unused_sliding_window_are_accepted(self) -> None:
+        """Standard models that carry these fields keep their geometry."""
+        uniform = _qwen_config() | {"layer_types": ["full_attention"] * 64}
+        self.assertEqual(
+            derive_geometry(uniform, chunk_tokens=256),
+            derive_geometry(_qwen_config(), chunk_tokens=256),
+        )
+        qwen25_7b = {
+            "architectures": ["Qwen2ForCausalLM"],
+            "hidden_size": 3584,
+            "max_window_layers": 28,
+            "num_attention_heads": 28,
+            "num_hidden_layers": 28,
+            "num_key_value_heads": 4,
+            "sliding_window": 131072,
+            "torch_dtype": "bfloat16",
+            "use_sliding_window": False,
+        }
+        result = derive_geometry(qwen25_7b, chunk_tokens=256)
+        self.assertEqual(result["geometry"]["full_model"]["bytes_per_token"], 57344)
+        self.assertEqual(result["geometry"]["full_model"]["bytes_per_chunk"], 14680064)
+
+    def test_cli_refuses_a_hybrid_config_with_exit_two(self) -> None:
+        """The command line prints the reason and writes no geometry."""
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.json"
+            config.write_text(json.dumps(_qwen35_wrapper_config()), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "kvprobe",
+                    "geometry",
+                    "--model-config",
+                    str(config),
+                    "--chunk-tokens",
+                    "256",
+                    "--json",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("geometry error: hybrid layer layout (text_config.layer_types", result.stderr)
+
+    def test_cli_writes_no_geometry_for_unsupported_uniform_layers(self) -> None:
+        """Unsupported uniform layers exit with an explanation and no artifact."""
+        config = _qwen_config() | {"layer_types": ["linear_attention"] * 64}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            output = Path(directory) / "geometry.json"
+            path.write_text(json.dumps(config), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "kvprobe",
+                    "geometry",
+                    "--model-config",
+                    str(path),
+                    "--chunk-tokens",
+                    "256",
+                    "--output",
+                    str(output),
+                    "--json",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+            self.assertFalse(output.exists())
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("supports only full_attention layers", result.stderr)
 
     def _geometry_cli(self, *extra: str) -> subprocess.CompletedProcess:
         """Run ``kvprobe geometry`` on the Qwen reference config."""

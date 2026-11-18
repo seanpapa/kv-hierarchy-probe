@@ -44,7 +44,9 @@ To check one pool size instead, give `--pool-slots 16` in place of `--sweep`.
   `docker cp <serving-container>:/actual/model/path/config.json ./model-config.json`.
   `kvprobe geometry` reads `num_hidden_layers`, `num_attention_heads`, `num_key_value_heads`
   (defaults to the attention-head count when absent), `head_dim` or else `hidden_size`, and
-  `torch_dtype` unless you pass `--dtype`. It refuses MLA models (`kv_lora_rank` present) and
+  `torch_dtype` unless you pass `--dtype`. It refuses MLA models (`kv_lora_rank` present), declared
+  layer types other than full attention and known hybrid markers
+  ([fail-closed boundaries](GEOMETRY.md#fail-closed-boundaries)), and
   pipeline parallelism above one. `--chunk-tokens`, `--dtype` and the TP size are runtime
   settings that the file does not contain: take them from the serving command, because a copied
   config does not verify them. Details: [Choose the model source](GEOMETRY.md#five-minute-path).

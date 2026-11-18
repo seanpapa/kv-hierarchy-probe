@@ -232,9 +232,26 @@ For the recorded Qwen2.5-32B BF16 TP=1 configuration, the result is 262,144 byte
 The command deliberately refuses cases where the standard formula would invent a result:
 
 - MLA configurations identified by `kv_lora_rank`;
+- unsupported declared layer types, at the top level or in `text_config`. An explicit
+  `layer_types` must be a non-empty list of names with one entry per declared layer, all
+  `full_attention`. Mixed layouts and uniform linear-attention, sliding-attention, state-space
+  or unknown types are refused; a single kind is not enough to establish compatibility;
+- known hybrid markers: `full_attention_interval`, `hybrid_override_pattern`,
+  `attn_layer_period`, `sliding_window_pattern`, or `cache_implementation` set to `"hybrid"`,
+  at the top level or in `text_config`. These markers are checked independently of the list.
+  The formula counts every layer as full attention and has no term for recurrent state;
+- a wrapper config whose layer fields sit only under `text_config`. The command reads a text
+  model's own config; the message names `text_config` instead of reporting a missing field;
 - pipeline parallelism greater than one without exact layer placement;
 - TP/KV-head combinations that are neither evenly sharded nor evenly replicated;
 - unknown dtypes or model fields that are absent, non-integral, or inconsistent.
+
+Absent or null `layer_types` keeps the standard-formula assumption used by older configs; it
+does not verify the actual cache layout. Detection relies on the fields above. A model that
+declares an unsupported layout another way, or one entered with `--layers`, is not automatically
+caught. Check the serving layout before using the result. This restriction applies to automatic
+geometry calculation, not to the five-gate method or to an external producer that supplies
+independently derived expected bytes and the required evidence.
 
 It does not connect to the serving endpoint and cannot prove that the live runtime used the supplied
 dtype, chunk size, TP size, or model file. Preserve `geometry.json` with the run, compare the inputs

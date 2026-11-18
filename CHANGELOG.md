@@ -33,6 +33,15 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 
 ### Changed
 
+- **`geometry` refuses unsupported declared cache layouts.** The standard formula counts every
+  layer as full attention and has no term for recurrent state. Explicit `layer_types` must now
+  contain one `full_attention` name per declared layer. Mixed, uniform non-full-attention,
+  unknown and malformed declarations are refused, as are known hybrid markers at the top level
+  or in `text_config` ([fail-closed boundaries](docs/GEOMETRY.md#fail-closed-boundaries)). Absent
+  or null layer types keep the previous standard-formula assumption, not a verified layout. A
+  wrapper config whose layer fields sit only under `text_config` is refused with a message naming
+  it, instead of "must be a positive integer". Standard-attention configs give the same result as
+  before. A config that used to get a number and is now refused makes `geometry` exit 2.
 - **Gate 3 and Gate 4 no longer pass on incomplete evidence.** A Gate 3 block that keeps successful
   samples only — a store cost without the per-attempt outcomes — is now `UNPROVEN`. It used to pass
   with its result labelled an optimistic estimate. A Gate 4 sweep that exceeded the upper tier's
@@ -80,6 +89,8 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   rule. The evidence schema and the ingest adapter are unchanged.
 - **Changed, compatible:** the assessment then moves up one PATCH version for the Gate 4 wording
   above, a correction under that rule.
+- **Changed, incompatible:** `geometry` moves up one MINOR version, because configs it used to
+  answer with a number now exit 2. Its output format is unchanged.
 
 ### Known limits
 
