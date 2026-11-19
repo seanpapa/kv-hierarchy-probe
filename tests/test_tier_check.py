@@ -40,7 +40,12 @@ from kvprobe.tier_check import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT / "schemas" / "tier-check-v0.1.0.schema.json"
+SCHEMA = ROOT / "schemas" / "tier-check-v0.2.0.schema.json"
+RUNTIMES = ("docker", "info", "--format", "{{range $k, $v := .Runtimes}}{{$k}} {{end}}")
+ENDPOINT = ("docker", "context", "inspect", "--format", "{{.Endpoints.docker.Host}}")
+DAEMON_NAME = ("docker", "info", "--format", "{{.Name}}")
+DOCKER_ROOT = ("docker", "info", "--format", "{{.DockerRootDir}}")
+DOCKER_COMMANDS = (ENDPOINT, DAEMON_NAME, DOCKER_ROOT, RUNTIMES)
 SCRIPT = ROOT / "scripts" / "g5_controlled_kv_experiment.py"
 GDSCHECK = "/usr/local/cuda/gds/tools/gdscheck"
 
@@ -74,6 +79,7 @@ class FakeHost:
             "/sys/module/nvidia_fs/parameters/rw_stats_enabled": "1\n",
             "/sys/module/nvidia_fs/parameters/dbg_enabled": "0\n",
             "/etc/cufile.json": "{}\n",
+            "/proc/sys/kernel/hostname": "tierhost\n",
         }
         self.dirs: dict[str, list[str]] = {
             "/sys/dev/block/259:7": ["size"],
@@ -109,6 +115,9 @@ class FakeHost:
                 0,
                 "/var/lib/docker\n",
             ),
+            RUNTIMES: (0, "io.containerd.runc.v2 nvidia runc \n"),
+            ENDPOINT: (0, "unix:///var/run/docker.sock\n"),
+            DAEMON_NAME: (0, "tierhost\n"),
         }
         self.calls: list[tuple[str, ...]] = []
 
@@ -181,7 +190,7 @@ class ReferenceHostTests(unittest.TestCase):
         """T11 and T12 need inputs; everything else passes."""
         document = run_tier_check(_request(), FakeHost())
         self.assertEqual(document["overall"], READY)
-        self.assertEqual(document["counts"], {PASS: 10, WARN: 0, FAIL: 0, SKIP: 2})
+        self.assertEqual(document["counts"], {PASS: 11, WARN: 0, FAIL: 0, SKIP: 2})
         self.assertEqual(
             document["device"],
             {"key": "259:7", "scope": "whole_disk", "disk": "nvme1n1"},
@@ -192,25 +201,31 @@ class ReferenceHostTests(unittest.TestCase):
         self.assertFalse(_check(document, "T12")["required_for_ready"])
 
     def test_checks_run_in_order_and_say_nothing_extra_on_pass(self) -> None:
-        """PASS carries no Why or Fix; the order is T1 to T12."""
+        """PASS carries no Why or Fix; the order is T1 to T13."""
         document = run_tier_check(_request(), FakeHost())
         checks = document["checks"]
         assert isinstance(checks, list)
         self.assertEqual(
-            [check["id"] for check in checks], [f"T{n}" for n in range(1, 13)]
+            [check["id"] for check in checks], [f"T{n}" for n in range(1, 14)]
         )
         for check in checks:
             if check["status"] == PASS:
                 self.assertEqual((check["why"], check["fix"]), ("", ""))
 
     def test_only_read_only_commands_are_run(self) -> None:
-        """The check runs gdscheck -p and docker info, nothing else."""
+        """The check runs gdscheck -p, docker context inspect and docker info, nothing else."""
         host = FakeHost()
         run_tier_check(_request(), host)
         self.assertEqual(
             sorted(host.calls),
             sorted(
-                [(GDSCHECK, "-p"), ("docker", "info", "--format", "{{.DockerRootDir}}")]
+                [
+                    (GDSCHECK, "-p"),
+                    ("docker", "info", "--format", "{{.DockerRootDir}}"),
+                    RUNTIMES,
+                    ENDPOINT,
+                    DAEMON_NAME,
+                ]
             ),
         )
 
@@ -624,6 +639,24 @@ class CounterTests(unittest.TestCase):
         host.files["/sys/fs/cgroup/cgroup.controllers"] = "cpu memory pids\n"
         self.assertEqual(_check(run_tier_check(_request(), host), "T6")["status"], FAIL)
 
+    def test_io_enabled_for_children_is_named(self) -> None:
+        """A host where containers already ran shows io in the root subtree."""
+        host = FakeHost()
+        host.files["/sys/fs/cgroup/cgroup.subtree_control"] = "cpuset cpu io memory pids\n"
+        t6 = _check(run_tier_check(_request(), host), "T6")
+        self.assertEqual(t6["status"], PASS)
+        self.assertIn("enabled for child cgroups", t6["finding"])
+        self.assertNotIn("not yet", t6["finding"])
+
+    def test_io_not_yet_enabled_for_children_still_passes(self) -> None:
+        """A fresh host: the runtime enables io when it starts a container."""
+        host = FakeHost()
+        host.files["/sys/fs/cgroup/cgroup.subtree_control"] = "cpu memory pids\n"
+        t6 = _check(run_tier_check(_request(), host), "T6")
+        self.assertEqual(t6["status"], PASS)
+        self.assertIn("not yet enabled for child cgroups", t6["finding"])
+        self.assertIn("container runtime enables it", t6["finding"])
+
     def test_missing_nvidia_fs_fails(self) -> None:
         """Without the driver there is no native path and no corroboration."""
         host = FakeHost()
@@ -1036,7 +1069,8 @@ class CommandTests(unittest.TestCase):
         """T11 needs both sizes."""
         code, _, err = self._run(["--cufile-buf-mib", "1024"], FakeHost())
         self.assertEqual(code, 2)
-        self.assertIn("given together", err)
+        self.assertIn("must be given together", err)
+        self.assertIn("T11", err)
 
     def test_json_goes_to_stdout_and_the_summary_to_stderr(self) -> None:
         """A script reading stdout gets JSON alone."""
@@ -1045,7 +1079,7 @@ class CommandTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         document = json.loads(out)
-        self.assertEqual(document["tier_check_version"], "0.1.0")
+        self.assertEqual(document["tier_check_version"], "0.2.0")
         self.assertEqual(_check(document, "T11")["status"], PASS)
         self.assertIn("Overall: READY", err)
 
@@ -1348,6 +1382,173 @@ class SchemaTests(unittest.TestCase):
         document = run_tier_check(_request(), FakeHost())
         del document["checks"][0]["required_for_ready"]
         self.assertTrue(list(validator.iter_errors(document)))
+
+
+
+class ContainerRuntimeTests(unittest.TestCase):
+    """T13: this user reaches a local Docker daemon with the NVIDIA runtime registered."""
+
+    def test_reference_host_passes(self) -> None:
+        """A local daemon answers and lists the nvidia runtime."""
+        t13 = _check(run_tier_check(_request(), FakeHost()), "T13")
+        self.assertEqual(t13["status"], PASS)
+        self.assertEqual(t13["title"], "Docker access and NVIDIA runtime")
+        self.assertIn("daemon on this host (tierhost)", t13["finding"])
+        self.assertTrue(t13["required_for_ready"])
+
+    def test_docker_missing_entirely_fails_rather_than_skips(self) -> None:
+        """No Docker at all: the failure outranks the unconfirmed daemon location."""
+        host = FakeHost()
+        for command in DOCKER_COMMANDS:
+            del host.commands[command]
+        document = run_tier_check(_request(arm="posix"), host)
+        self.assertEqual(_check(document, "T13")["status"], FAIL)
+        t2 = _check(document, "T2")
+        self.assertEqual(t2["status"], SKIP)
+        self.assertIn(
+            "Docker root (daemon not confirmed on this host: the Docker endpoint could not "
+            "be read",
+            t2["finding"],
+        )
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_docker_missing_fails_for_both_arms(self) -> None:
+        """No Docker: neither arm can start, so neither is ready."""
+        for arm in ("gds", "posix"):
+            with self.subTest(arm=arm):
+                host = FakeHost()
+                del host.commands[RUNTIMES]
+                document = run_tier_check(_request(arm=arm), host)
+                t13 = _check(document, "T13")
+                self.assertEqual(t13["status"], FAIL)
+                self.assertIn("docker info did not succeed for this user", t13["finding"])
+                self.assertIn("root-equivalent", t13["fix"])
+                self.assertEqual(document["overall"], NOT_READY)
+
+    def test_permission_denied_is_named(self) -> None:
+        """A daemon this user cannot reach is reported with what docker said."""
+        host = FakeHost()
+        host.commands[RUNTIMES] = (
+            1,
+            "permission denied while trying to connect to the Docker daemon socket\n",
+        )
+        t13 = _check(run_tier_check(_request(), host), "T13")
+        self.assertEqual(t13["status"], FAIL)
+        self.assertIn("(exit 1): permission denied", t13["finding"])
+
+    def test_no_nvidia_runtime_warns(self) -> None:
+        """Docker without a registered nvidia runtime is unverified, not refused."""
+        host = FakeHost()
+        host.commands[RUNTIMES] = (0, "io.containerd.runc.v2 runc \n")
+        document = run_tier_check(_request(), host)
+        t13 = _check(document, "T13")
+        self.assertEqual(t13["status"], WARN)
+        self.assertIn("runtimes: io.containerd.runc.v2, runc", t13["finding"])
+        self.assertIn("nvidia-ctk runtime configure", t13["fix"])
+        self.assertEqual(document["overall"], READY_WITH_WARNINGS)
+
+    def test_shared_disk_warning_no_longer_hides_a_missing_docker(self) -> None:
+        """The new-host case: T2 warns on a shared disk, T13 still blocks readiness."""
+        host = FakeHost()
+        for command in DOCKER_COMMANDS:
+            del host.commands[command]
+        host.devices["/models"] = (259, 7)
+        document = run_tier_check(_request(arm="posix", model_dir="/models"), host)
+        self.assertEqual(_check(document, "T2")["status"], WARN)
+        self.assertIn("not compared: Docker root", _check(document, "T2")["finding"])
+        self.assertEqual(_check(document, "T13")["status"], FAIL)
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_daemon_not_confirmed_on_this_host_withholds_readiness(self) -> None:
+        """A remote or unidentified daemon would combine results from two hosts."""
+        cases = {
+            "tcp endpoint (DOCKER_HOST or context)": (
+                {ENDPOINT: (0, "tcp://192.0.2.10:2376\n")},
+                "the Docker endpoint is tcp://192.0.2.10:2376, not a local socket",
+            ),
+            "ssh endpoint": (
+                {ENDPOINT: (0, "ssh://user@192.0.2.10\n")},
+                "not a local socket",
+            ),
+            "forwarded socket, other host": (
+                {DAEMON_NAME: (0, "otherhost\n")},
+                "reports host 'otherhost'; this host is 'tierhost'",
+            ),
+            "endpoint unreadable": (
+                {ENDPOINT: (1, "unknown command: docker context\n")},
+                "the Docker endpoint could not be read (exit 1: unknown command",
+            ),
+            "daemon name unreadable": (
+                {DAEMON_NAME: (1, "")},
+                "did not report the daemon's host name (exit 1)",
+            ),
+            "host name unreadable": ({}, "this host's name could not be read"),
+        }
+        for name, (commands, finding) in cases.items():
+            with self.subTest(case=name):
+                host = FakeHost()
+                host.commands.update(commands)
+                if name == "host name unreadable":
+                    del host.files["/proc/sys/kernel/hostname"]
+                document = run_tier_check(_request(), host)
+                t13 = _check(document, "T13")
+                self.assertEqual(t13["status"], SKIP)
+                self.assertTrue(t13["required_for_ready"])
+                self.assertIn(finding, t13["finding"])
+                self.assertIn("two hosts", t13["why"])
+                self.assertIn("unset DOCKER_HOST and DOCKER_CONTEXT", t13["fix"])
+                self.assertEqual(document["overall"], NOT_READY)
+
+    def test_remote_daemon_root_is_not_compared_with_local_disks(self) -> None:
+        """T2 does not ask a remote daemon for its root or compare it here."""
+        host = FakeHost()
+        host.commands[ENDPOINT] = (0, "tcp://192.0.2.10:2376\n")
+        document = run_tier_check(_request(), host)
+        t2 = _check(document, "T2")
+        self.assertNotIn(DOCKER_ROOT, host.calls)
+        self.assertNotIn(DAEMON_NAME, host.calls)
+        self.assertEqual(t2["status"], SKIP)
+        self.assertIn(
+            "not compared: Docker root (daemon not confirmed on this host: the Docker "
+            "endpoint is tcp://192.0.2.10:2376",
+            t2["finding"],
+        )
+
+    def test_unconfirmed_daemon_with_other_outcomes(self) -> None:
+        """The unconfirmed location outranks a missing runtime and combines with T2."""
+        host = FakeHost()
+        host.commands[DAEMON_NAME] = (0, "otherhost\n")
+        host.commands[RUNTIMES] = (0, "runc \n")
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T13")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
+
+        host = FakeHost()
+        _make_partition_tier(host)
+        host.commands[ENDPOINT] = (0, "tcp://192.0.2.10:2376\n")
+        document = run_tier_check(_request(), host)
+        self.assertEqual(_check(document, "T2")["status"], WARN)
+        self.assertEqual(_check(document, "T13")["status"], SKIP)
+        self.assertEqual(document["overall"], NOT_READY)
+
+    def test_runtime_warning_with_other_outcomes(self) -> None:
+        """A T13 WARN combines with SKIP and FAIL by the usual precedence."""
+        cases = {
+            "warn alone": ({}, READY_WITH_WARNINGS),
+            "with required skip": ({"slaves": True}, NOT_READY),
+            "with fail": ({"no_io": True}, NOT_READY),
+        }
+        for name, (change, expected) in cases.items():
+            with self.subTest(case=name):
+                host = FakeHost()
+                host.commands[RUNTIMES] = (0, "runc \n")
+                if change.get("slaves"):
+                    del host.dirs["/sys/block/nvme1n1/slaves"]
+                if change.get("no_io"):
+                    host.files["/sys/fs/cgroup/cgroup.controllers"] = "cpu memory pids\n"
+                document = run_tier_check(_request(), host)
+                self.assertEqual(_check(document, "T13")["status"], WARN)
+                self.assertEqual(document["overall"], expected)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ This directory contains the method, reproducibility notes, and release controls 
 | [`PROFILES.md`](PROFILES.md) | V1 component-tier claim boundary, v1 generality work, and the v2 disaggregated-path extension. | product, evidence, and adapter direction |
 | [`METHOD.md`](METHOD.md) | The procedure in full — the five gates, what counts as evidence, canonical terms. **Read this to understand.** | measurement and claim rules across evidence paths |
 | [`CHECKLIST.md`](CHECKLIST.md) | Common measurement checks and gate-specific criteria, with implementation coverage and operator responsibilities. | Gate 1 evidence review and every Gate 2–5 experiment, including reference scripts and external producers |
-| [`TIER-CHECK.md`](TIER-CHECK.md) | The read-only host preflight for a local NVMe tier: what each check (T1–T12) reads and decides, the overall result and the exit codes. `READY` is not Gate 1 evidence. | `python -m kvprobe tier-check` |
+| [`TIER-CHECK.md`](TIER-CHECK.md) | The read-only host preflight for a local NVMe tier: what each check (T1–T13) reads and decides, the overall result and the exit codes. `READY` is not Gate 1 evidence. | `python -m kvprobe tier-check` |
 | [`FAILURE-CATALOG.md`](FAILURE-CATALOG.md) | How a tier reports a plausible number instead of an error, and **which check catches each one** — including the ones no script catches. | all, plus operator preconditions |
 | [`EVIDENCE.md`](EVIDENCE.md) | Normalized evidence contract, exit status, and claim-suppression behavior. | `python -m kvprobe report` |
 | [`EXTERNAL-RUNS.md`](EXTERNAL-RUNS.md) | Context-run shape for stacks without reference scripts (e.g. Dynamo KVBM), and what a phantom tier looks like. | `python -m kvprobe ingest` |

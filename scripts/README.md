@@ -80,13 +80,13 @@ mkdir -p "$OUT"
 
 **2. Preflight** (seconds). `tier-check` checks, read-only, the host conditions that decide whether
 this run can establish Gate 1: the device the counter reads, a dedicated disk, multipath, cgroup v2,
-the filesystem, compat mode, the `nvidia-fs` counters, the container prerequisites and the staging
-pool. **Continue with `READY` or `READY WITH WARNINGS`** (exit 0). A warning names a configuration
+the filesystem, compat mode, the `nvidia-fs` counters, the container prerequisites, the staging
+pool and whether this user reaches a Docker daemon on this host with the NVIDIA runtime registered. **Continue with `READY` or `READY WITH WARNINGS`** (exit 0). A warning names a configuration
 this repository has not verified, such as multipath, device stacking or NVMe-oF; the run may
 proceed, and the warning belongs with its results. Failures and required checks that could not be
 completed are `NOT READY` and return exit 1; their output names the next check or fix. Optional inputs that were
 not supplied and checks that do not apply to the selected arm may be skipped without blocking
-`READY`. [TIER-CHECK](../docs/TIER-CHECK.md) defines each check (T1–T12). `doctor` lists what the
+`READY`. [TIER-CHECK](../docs/TIER-CHECK.md) defines each check (T1–T13). `doctor` lists what the
 host can observe; `preflight` prints the mount, `gdscheck`, the GPUs and the image id.
 
 ```bash
