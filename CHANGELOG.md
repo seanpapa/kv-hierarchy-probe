@@ -4,6 +4,29 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
+## Unreleased
+
+### Added
+
+- **Gate 5 on a host without GDS.** The controlled launcher's `concurrency-posix` mode runs the
+  concurrency sweep on the POSIX arm alone and writes `concurrency-posix.json`, which `ingest` judges
+  as Gate 5 against a configuration that declares a `posix` arm. Before, the only sweeps were
+  `concurrency` (all three arms) and `concurrency-gds`, so a host without `nvidia-fs` could not
+  produce Gate 5 ([runbook step 5](scripts/README.md#minimal-runbook--all-five-gates-one-configuration)).
+- **`preflight [ARM]`.** `preflight posix` and `preflight recompute` skip `gdscheck` and say so;
+  `preflight` with no arm, or `preflight gds`, still requires it and now names a missing `gdscheck`
+  instead of stopping on the shell's error.
+
+### Fixed
+
+- `preflight` looked for the model directory by the basename of `MODEL`, so a nested model path
+  under `/models` (a Hugging Face cache snapshot, for example) failed without a message. It now
+  resolves `MODEL` relative to `/models`, refuses a `MODEL` outside `/models`, and names a missing
+  directory. Parent-directory (`..`) components are refused even when the resulting host path
+  exists; dots within a directory name remain allowed.
+- The controlled launcher started the recompute arm only under bash 4.4 or later: an empty option
+  array is unset under `set -u` in older bash.
+
 ## 0.2.0 — 2026-11-19
 
 An incompatible release under the pre-1.0 rule: two Gate 3 and Gate 4 verdicts changed for documents
