@@ -22,7 +22,8 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 - `preflight` looked for the model directory by the basename of `MODEL`, so a nested model path
   under `/models` (a Hugging Face cache snapshot, for example) failed without a message. It now
   resolves `MODEL` relative to `/models`, refuses a `MODEL` outside `/models`, and names a missing
-  directory.
+  directory. Parent-directory (`..`) components are refused even when the resulting host path
+  exists; dots within a directory name remain allowed.
 - The controlled launcher started the recompute arm only under bash 4.4 or later: an empty option
   array is unset under `set -u` in older bash.
 

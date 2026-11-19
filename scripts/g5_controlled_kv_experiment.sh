@@ -125,6 +125,11 @@ model_host_path() {
     echo "!! MODEL must be a path under /models (the launcher mounts the model directory there): $MODEL" >&2
     return 1
   }
+  # Keep the path passed to vLLM unchanged; parent components can leave the mount.
+  [[ "$MODEL/" != */../* ]] || {
+    echo "!! MODEL must not contain a '..' path component: $MODEL" >&2
+    return 1
+  }
   printf '%s/%s\n' "$host_models" "${MODEL#/models/}"
 }
 

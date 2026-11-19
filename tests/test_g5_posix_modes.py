@@ -180,6 +180,33 @@ class Preflight(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("MODEL must be a path under /models", result.stderr)
 
+    def test_parent_model_components_are_refused_even_when_host_paths_exist(self) -> None:
+        """A host directory outside the mount must not satisfy model preflight."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            host = Host(root, gdscheck=False)
+            (root / "outside").mkdir()
+            for model in (
+                "/models/../outside",
+                "/models/..",
+                "/models/../",
+                "/models/hub/../../outside",
+            ):
+                with self.subTest(model=model):
+                    result = host.run("preflight", "posix", MODEL=model)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("MODEL must not contain a '..' path component", result.stderr)
+
+    def test_double_dots_within_a_model_directory_name_are_allowed(self) -> None:
+        """Only the parent component is refused, not dots within a directory name."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            host = Host(root, gdscheck=False)
+            (root / "models" / "model..revision").mkdir()
+            result = host.run("preflight", "posix", MODEL="/models/model..revision")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("GDS check skipped", result.stdout)
+
 
 class ConcurrencyModes(unittest.TestCase):
     """Gate 5 sweeps: one tier arm, or all three."""

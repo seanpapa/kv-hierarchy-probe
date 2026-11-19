@@ -102,7 +102,8 @@ EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight
 On a host without GDS, only the recompute and POSIX arms can run: give `tier-check` `--arm posix`
 without the two pool options, and run `preflight posix`, which skips `gdscheck` and says so.
 `preflight` also checks that `$MODEL` exists under `MODEL_HOST_DIR`; `MODEL` may name a nested
-directory there.
+directory there. Parent-directory (`..`) components in `MODEL` are refused before checking the
+host directory, so parent traversal cannot make an unrelated host directory satisfy preflight.
 
 The subshell stops the block if a command fails, without closing your interactive shell. If it
 stops, resolve the reported condition and rerun step 2 before starting step 3. T3 checks the
