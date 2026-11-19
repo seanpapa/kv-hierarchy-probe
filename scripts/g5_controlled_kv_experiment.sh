@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Controlled single-GPU experiment (PROBE_GPU_INDEX, default 0): recompute / buffered POSIX / native GDS.
 # Usage: bash g5_controlled_kv_experiment.sh
-#   {preflight|serve|stop|one|posix-sweep|randomized|matched-gds|context-sweep|concurrency|concurrency-gds|collect}
+#   {preflight [ARM]|serve|stop|one|posix-sweep|randomized|matched-gds|context-sweep|concurrency|concurrency-gds|concurrency-posix|collect}
+# A host without GDS runs the recompute and POSIX arms only: `preflight posix`, `one`, `concurrency-posix`.
 set -euo pipefail
 
 # Required — these name your image and your GDS-capable mount, so there is no default.
@@ -115,6 +116,18 @@ model_mount() {
   return 1
 }
 
+# Host path of $MODEL, which the container sees under /models. MODEL may name a nested
+# directory (a Hugging Face cache snapshot, for example), so the path is MODEL relative to
+# /models, not its basename.
+model_host_path() {
+  local host_models=$1
+  [[ "$MODEL" == /models/?* ]] || {
+    echo "!! MODEL must be a path under /models (the launcher mounts the model directory there): $MODEL" >&2
+    return 1
+  }
+  printf '%s/%s\n' "$host_models" "${MODEL#/models/}"
+}
+
 wait_ready() {
   for _ in $(seq 1 120); do
     if curl -sf "http://127.0.0.1:$PORT/v1/models" >/dev/null; then
@@ -145,6 +158,8 @@ start_arm() {
     return 1
   }
 
+  # Empty for the recompute arm. Expanded as ${name[@]+...} below: bash before 4.4 treats an
+  # empty array as unset under `set -u`.
   local connector=()
   local storage=()
   if [[ "$arm" == posix ]]; then
@@ -178,10 +193,10 @@ start_arm() {
     --gpus "\"device=${PROBE_GPU_INDEX}\"" --ipc host --network host \
     --volume "$host_models:/models:ro" \
     --env LMCACHE_CHUNK_SIZE=256 --env LMCACHE_SAVE_UNFULL_CHUNK=False \
-    --env PYTHONHASHSEED=0 "${storage[@]}" "$IMAGE" \
+    --env PYTHONHASHSEED=0 ${storage[@]+"${storage[@]}"} "$IMAGE" \
     vllm serve "$MODEL" --host "$SERVE_HOST" --port "$PORT" \
       --served-model-name "$PROBE_MODEL" --gpu-memory-utilization 0.80 \
-      --no-enable-prefix-caching "${connector[@]}" >/dev/null
+      --no-enable-prefix-caching ${connector[@]+"${connector[@]}"} >/dev/null
   wait_ready
   local api_root
   api_root=$(curl -sf "http://127.0.0.1:$PORT/v1/models" | python3 -c \
@@ -244,13 +259,44 @@ run_representative() {
     --filler-key-policy "$FILLER_KEY_POLICY"
 }
 
+run_concurrency() {
+  local arm=$1
+  python3 "$CLIENT" concurrency --arm "$arm" --port "$PORT" \
+    --backend "$(backend_id_for_arm "$arm")" \
+    --container "$([[ "$arm" == recompute ]] || printf '%s' "$CONTAINER")" \
+    --output "$EVIDENCE/concurrency-${arm}.json" --concurrency 1 2 4 8 \
+    --concurrent-context 2048 --batches "${BATCHES:-10}" --warmup 2 \
+    "${PROMPT_ARGS[@]}" \
+    --fillers "${FILLERS:-6}" --filler-tokens "${FILLER_TOKENS:-8192}" --filler-key-policy "$FILLER_KEY_POLICY"
+  docker logs "$CONTAINER" > "$EVIDENCE/concurrency-${arm}-container.log" 2>&1
+}
+
 case ${1:-} in
 preflight)
+  # Usage: bash $0 preflight [ARM]   (ARM = recompute | posix | gds; omitted = all three)
+  # Only the GDS arm needs gdscheck; `preflight posix` checks a host without GDS.
+  preflight_arm=${2:-all}
+  case "$preflight_arm" in
+    all|recompute|posix|gds) ;;
+    *) echo "usage: bash $0 preflight [recompute|posix|gds]" >&2; exit 2 ;;
+  esac
   [[ -f "$CLIENT" ]] || { echo "copy client to $CLIENT" >&2; exit 1; }
   host_models=$(model_mount) || { echo "model mount not found" >&2; exit 1; }
-  [[ -d "$host_models/$PROBE_MODEL" ]]
+  model_dir=$(model_host_path "$host_models") || exit 1
+  [[ -d "$model_dir" ]] || {
+    echo "!! model directory not found on the host: $model_dir (MODEL=$MODEL, mounted from $host_models)" >&2
+    exit 1
+  }
   findmnt -no TARGET,SOURCE,FSTYPE,OPTIONS "$MOUNT"
-  "$GDSCHECK" -p | grep -E 'NVMe|use_compat_mode'
+  if [[ "$preflight_arm" == all || "$preflight_arm" == gds ]]; then
+    [[ -x "$GDSCHECK" ]] || {
+      echo "!! gdscheck not found at $GDSCHECK: set GDSCHECK, or on a host without GDS run 'preflight posix'" >&2
+      exit 1
+    }
+    "$GDSCHECK" -p | grep -E 'NVMe|use_compat_mode'
+  else
+    echo "GDS check skipped: the $preflight_arm arm does not use cuFile"
+  fi
   nvidia-smi --query-gpu=index,name,pci.bus_id,memory.used --format=csv
   docker image inspect "$IMAGE" --format '{{.Id}} {{json .RepoDigests}}'
   ;;
@@ -333,27 +379,15 @@ concurrency)
   host_models=$(model_mount)
   for arm in recompute posix gds; do
     start_arm "$arm" "$host_models"
-    python3 "$CLIENT" concurrency --arm "$arm" --port "$PORT" \
-      --backend "$(backend_id_for_arm "$arm")" \
-      --container "$([[ "$arm" == recompute ]] || printf '%s' "$CONTAINER")" \
-      --output "$EVIDENCE/concurrency-${arm}.json" --concurrency 1 2 4 8 \
-      --concurrent-context 2048 --batches "${BATCHES:-10}" --warmup 2 \
-      "${PROMPT_ARGS[@]}" \
-      --fillers "${FILLERS:-6}" --filler-tokens "${FILLER_TOKENS:-8192}" --filler-key-policy "$FILLER_KEY_POLICY"
-    docker logs "$CONTAINER" > "$EVIDENCE/concurrency-${arm}-container.log" 2>&1
+    run_concurrency "$arm"
   done
   ;;
-concurrency-gds)
+concurrency-gds|concurrency-posix)
+  # One tier arm's sweep. concurrency-posix is Gate 5 on a host without GDS.
+  arm=${1#concurrency-}
   host_models=$(model_mount)
-  start_arm gds "$host_models"
-  python3 "$CLIENT" concurrency --arm gds --port "$PORT" \
-    --backend "$(backend_id_for_arm gds)" \
-    --container "$CONTAINER" --output "$EVIDENCE/concurrency-gds.json" \
-    --concurrency 1 2 4 8 --concurrent-context 2048 \
-    --batches "${BATCHES:-10}" --warmup 2 --fillers "${FILLERS:-6}" --filler-tokens "${FILLER_TOKENS:-8192}" \
-    "${PROMPT_ARGS[@]}" \
-    --filler-key-policy "$FILLER_KEY_POLICY"
-  docker logs "$CONTAINER" > "$EVIDENCE/concurrency-gds-container.log" 2>&1
+  start_arm "$arm" "$host_models"
+  run_concurrency "$arm"
   ;;
 collect)
   cp "$CLIENT" "$0" "$EVIDENCE/"
@@ -370,7 +404,7 @@ collect)
   echo "$HOME/$(basename "$EVIDENCE").tar.gz"
   ;;
 *)
-  echo "usage: bash $0 {preflight|posix-sweep|context-sweep|randomized|one|matched-gds|concurrency|concurrency-gds|collect}" >&2
+  echo "usage: bash $0 {preflight [ARM]|serve ARM|stop|one ARM RUN|posix-sweep|context-sweep|randomized|matched-gds|concurrency|concurrency-gds|concurrency-posix|collect}" >&2
   exit 2
   ;;
 esac

@@ -99,6 +99,11 @@ EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight
 )
 ```
 
+On a host without GDS, only the recompute and POSIX arms can run: give `tier-check` `--arm posix`
+without the two pool options, and run `preflight posix`, which skips `gdscheck` and says so.
+`preflight` also checks that `$MODEL` exists under `MODEL_HOST_DIR`; `MODEL` may name a nested
+directory there.
+
 The subshell stops the block if a command fails, without closing your interactive shell. If it
 stops, resolve the reported condition and rerun step 2 before starting step 3. T3 checks the
 controller transport: NVMe/TCP and NVMe/RDMA are outside this local PCIe baseline, so they warn;
@@ -124,6 +129,9 @@ EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh one gds 1
 ```bash
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh concurrency-gds
 ```
+
+On a host without GDS, `concurrency-posix` runs the same sweep on the POSIX arm and writes
+`concurrency-posix.json`; declare a `posix` arm in step 9 and pass that file to `ingest`.
 
 **6. Gate 3** — ten admission/reuse attempts on a fresh tier arm (about 5 min).
 

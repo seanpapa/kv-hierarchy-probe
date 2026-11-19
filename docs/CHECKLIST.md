@@ -176,7 +176,7 @@ recompute, not with the faster tier. Its axis is capacity × reuse, not bandwidt
 
 ### Gate 5 — Operating envelope · *up to what load does the tier exist?*
 
-**Run:** `bash scripts/g5_controlled_kv_experiment.sh concurrency` (and `concurrency-gds`). Per-request correctness and per-batch tier-byte checks run at every level.
+**Run:** `bash scripts/g5_controlled_kv_experiment.sh concurrency` (or one tier arm: `concurrency-gds`, or `concurrency-posix` on a host without GDS). Per-request correctness and per-batch tier-byte checks run at every level.
 
 - [ ] Concurrency swept at **one** per-request input size, with correctness and tier checks **running at every level.**
 - [ ] Report the highest load at which **every** measured batch met its tier-byte check with all responses correct — and the input size.
