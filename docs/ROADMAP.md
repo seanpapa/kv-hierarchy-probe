@@ -1,6 +1,6 @@
 # Roadmap and known limitations
 
-> Reviewed: 2026-11-18. This page states what the probe does not verify yet and what is planned.
+> Reviewed: 2026-11-19. This page states what the probe does not verify yet and what is planned.
 > It is not a schedule. Items move or close through pull requests that update this page.
 
 **Verified today:** local NVMe only, on the paths listed in
@@ -27,8 +27,8 @@ request evidence.
 
 ## Recently completed on main
 
-These changes are implemented on `main` but are not yet included in a tagged release. See
-[CHANGELOG — Unreleased](../CHANGELOG.md#unreleased) for details.
+These changes ship in `0.2.0`; no completed change is unreleased. See
+[CHANGELOG — 0.2.0](../CHANGELOG.md#020--2026-11-19) for details.
 
 | Change | What improved | Merged in |
 |---|---|---|
@@ -38,6 +38,8 @@ These changes are implemented on `main` but are not yet included in a tagged rel
 | GDS staging-pool cause investigation | Source review and a controlled CPU-cache-on/off comparison support the explanation for pool space held after a completed load ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). This closed the cause-finding item only; the pass-condition review is the next row | #22 |
 | Gate 3 and Gate 4 pass-condition review | Retaining every attempt and the classification counts is enough to prevent a false `PASS`; evidence without them was not covered. A Gate 3 block of successful samples only and a Gate 4 overflow with target-tier service but no counts are now `UNPROVEN`; overflow with no service remains `FAIL`, and evidence with every attempt and the counts is judged as before ([METHOD](METHOD.md#gate-3--admission-cost)) | #23 |
 | Staging-pool cause in the Gate 4 text | Fallbacks beyond capacity now carry a note that a held staging pool can cause them, so the counts alone do not show a device fault, unless every fallback points to the store path; METHOD states that the same cause can raise Gate 3's reuses needed. No verdict changed ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #24 |
+| `geometry` layout refusal | Explicit `layer_types` must declare full attention for every layer; mixed, uniform non-full-attention and malformed declarations and known hybrid markers are refused instead of answered with the standard formula ([GEOMETRY](GEOMETRY.md#fail-closed-boundaries)) | #25 |
+| `tier-check` Docker access | T13 checks that this user reaches a Docker daemon on this host with the NVIDIA runtime registered; a host without Docker no longer reads ready ([TIER-CHECK](TIER-CHECK.md#4-the-checks)) | #26 |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit

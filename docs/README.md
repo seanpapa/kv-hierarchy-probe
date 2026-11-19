@@ -132,10 +132,11 @@ absent line costs a reader nothing; a stale one costs them trust in every other 
   run under that contract remain unestablished. Further NVMe feature expansion is paused;
   completion of that verification track was not a prerequisite for the public baseline. It does not
   replace common validation or the evidence report's Gate 1 verdict.
-- `tier-check`, a read-only preflight for a local NVMe tier, ships in `0.1.1`.
+- `tier-check`, a read-only preflight for a local NVMe tier, ships since `0.1.1`; `0.2.0` adds a
+  check of Docker access and the NVIDIA runtime.
   The minimal runbook runs it as step 2, and [`TIER-CHECK.md`](TIER-CHECK.md) defines its checks.
-  On the reference host's single-path local tier it returned `READY`; native multipath heads are
-  covered by tests only. `READY` says that host conditions which would spoil a run were not found;
+  On the reference host's single-path local tier it returned `READY`, and on a host without Docker
+  `NOT READY`; native multipath heads are covered by tests only. `READY` says that host conditions which would spoil a run were not found;
   it is not Gate 1 evidence.
 - On 2026-10-08 all five gates were measured in one run of one declared configuration, on the
   host and model of the 2026-10-05 re-measurement: a native cuFile GDS arm with its recompute arm,

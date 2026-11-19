@@ -4,7 +4,13 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
-## Unreleased
+## 0.2.0 — 2026-11-19
+
+An incompatible release under the pre-1.0 rule: two Gate 3 and Gate 4 verdicts changed for documents
+the report already accepted, `geometry` refuses configs it used to answer, and `tier-check` gains a
+thirteenth check that can turn a host from ready to not ready. The 2026-10-08 all-five run keeps its
+verdict and counts under the new assessment. Reports also gain Gate 1 next steps and Gate 4 fallback
+kinds.
 
 ### Added
 
@@ -108,12 +114,21 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   could read `READY WITH WARNINGS`, and one whose Docker lists no `nvidia` runtime reads
   `READY WITH WARNINGS` where it could read `READY`. A daemon not confirmed on this host now gives
   `NOT READY`. A new schema file describes it; the earlier one stays for results written before.
+- **Unchanged:** every other contract; [VERSIONING](docs/VERSIONING.md#history) lists the versions
+  this release writes and reads.
 
 ### Known limits
 
 - A Gate 3 reuse classified as `fallback` may be a recompute or a hit from a tier above. It is not
   split, and the break-even result does not depend on it
   ([METHOD, Gate 3](docs/METHOD.md#gate-3--admission-cost)).
+- `geometry` detects unsupported layouts only from an explicit `layer_types` list and the listed
+  hybrid markers. A config without either, or layer counts entered with `--layers`, still gets the
+  standard formula ([fail-closed boundaries](docs/GEOMETRY.md#fail-closed-boundaries)).
+- `tier-check` T13 does not start a container: it shows Docker access and a registered `nvidia`
+  runtime, not that the image or the GPU work. "On this host" is a host-name match, and a reachable
+  tcp or ssh daemon is covered by tests only ([TIER-CHECK](docs/TIER-CHECK.md#7-known-limits)).
+- The [known limits of `0.1.1`](#011--2026-11-15) still apply.
 
 ## 0.1.1 — 2026-11-15
 

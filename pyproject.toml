@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kv-hierarchy-probe"
-version = "0.1.1"
+version = "0.2.0"
 description = "Prove a KV-cache tier before reporting its performance."
 readme = "README.md"
 requires-python = ">=3.10"
