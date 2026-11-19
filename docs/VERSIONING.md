@@ -27,7 +27,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 
 | Field | Written | Also read | What it versions | Defined in |
 |---|---|---|---|---|
-| `version` | `0.1.1` | — | The package | `pyproject.toml` |
+| `version` | `0.2.0` | — | The package | `pyproject.toml` |
 | `schema_version` | `0.3.2` | `0.3.0`, `0.3.1`, `0.3.2` | The evidence document that `report` judges | `kvprobe/ingest.py`, `kvprobe/report.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
 | `assessment_version` | `0.7.1` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
 | `normalized_by.version` | `0.4.3` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
@@ -48,6 +48,18 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 The registry above is the current state of `main`. Each release below lists the contract versions it
 ships; a package release does not reset them. The [changelog](../CHANGELOG.md) describes what changed
 for a user.
+
+### 0.2.0 — 2026-11-19
+
+- **Changed, incompatible:** `assessment_version` `0.6.2` → `0.7.1` (two Gate 3 and Gate 4 verdicts
+  changed for documents the report already accepted; `0.7.1` is a wording correction on top);
+  `geometry_version` `0.1.1` → `0.2.0` (unsupported declared layouts now exit 2);
+  `tier_check_version` `0.1.0` → `0.2.0` (thirteen checks, new schema file
+  `schemas/tier-check-v0.2.0.schema.json`; `tier-check-v0.1.0.schema.json` stays for earlier
+  results).
+- **Changed, compatible:** `schema_version` written `0.3.1` → `0.3.2` (an optional pair of Gate 4
+  counts), read `0.3.0`, `0.3.1` and `0.3.2`; `normalized_by.version` `0.4.2` → `0.4.3`.
+- **Unchanged:** every other contract keeps the version it had in `0.1.1`.
 
 ### 0.1.1 — 2026-11-15
 
