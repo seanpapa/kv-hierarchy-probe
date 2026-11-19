@@ -461,7 +461,8 @@ def _tier_check(args: argparse.Namespace) -> int:
     gdscheck = args.gdscheck or os.environ.get("GDSCHECK", "") or find_gdscheck() or ""
     if (args.cufile_buf_mib is None) != (args.mib_per_chunk is None):
         print(
-            "tier-check: --cufile-buf-mib and --mib-per-chunk are given together",
+            "tier-check: --cufile-buf-mib and --mib-per-chunk must be given together "
+            "(both size the GDS staging pool check, T11)",
             file=sys.stderr,
         )
         return 2

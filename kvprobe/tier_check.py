@@ -7,9 +7,10 @@ the per-device counter reads, whether that device is the tier's alone, whether
 the counters exist, and whether cuFile takes the native path. Missing one shows
 up only after the run, as ``UNPROVEN`` or as a measurement of something other
 than the tier. These checks read ``/sys``, ``/proc`` and the mount table, and
-run ``gdscheck -p`` with a timeout. They never write, remount, change a module
-parameter or start a container, and a value they cannot read is reported as
-``SKIP`` rather than guessed.
+run ``gdscheck -p``, ``docker context inspect`` and ``docker info`` with a
+timeout. They never write, remount, change a module parameter or start a
+container, and a value they cannot read is reported as ``SKIP`` rather than
+guessed.
 
 A ``READY`` result is not Gate 1 evidence. Only the run's per-request counters
 are.
@@ -53,6 +54,25 @@ _FAILURE_CATALOG = "docs/FAILURE-CATALOG.md"
 _PRECONDITIONS = "scripts/README.md, 'Preconditions on the host'"
 _COUNTER_NOTE = "scripts/README.md, 'The POSIX arm's cgroup counter reads one device'"
 _SCOPE_TABLE = "README.md, scope table"
+
+#: Commands that locate the Docker daemon the CLI talks to. ``docker context
+#: inspect`` resolves ``DOCKER_HOST`` and ``DOCKER_CONTEXT`` the way every other
+#: ``docker`` command does.
+DOCKER_ENDPOINT_COMMAND = (
+    "docker",
+    "context",
+    "inspect",
+    "--format",
+    "{{.Endpoints.docker.Host}}",
+)
+DOCKER_NAME_COMMAND = ("docker", "info", "--format", "{{.Name}}")
+DOCKER_RUNTIMES_COMMAND = (
+    "docker",
+    "info",
+    "--format",
+    "{{range $k, $v := .Runtimes}}{{$k}} {{end}}",
+)
+HOSTNAME_FILE = "/proc/sys/kernel/hostname"
 
 
 class Host(Protocol):
@@ -241,7 +261,7 @@ class CheckResult:
     """Outcome of one check.
 
     Attributes:
-        id: Check identifier, ``T1`` to ``T12``.
+        id: Check identifier, ``T1`` to ``T13``.
         title: What the check establishes.
         status: One of ``PASS``, ``WARN``, ``FAIL`` or ``SKIP``.
         finding: What was observed, or why it could not be checked.
@@ -275,6 +295,91 @@ class CheckResult:
             "fix": self.fix,
             "required_for_ready": self.required_for_ready,
         }
+
+
+@dataclass(frozen=True)
+class DockerDaemon:
+    """Where the Docker CLI sends its requests, and whether that is this host.
+
+    Attributes:
+        endpoint: The endpoint the CLI resolved (for example
+            ``unix:///var/run/docker.sock``); empty when it could not be read.
+        local: True only when the endpoint is a ``unix://`` socket and the
+            daemon reports this host's name.
+        detail: What was established, or why the daemon is not confirmed to
+            run on this host.
+    """
+
+    endpoint: str
+    local: bool
+    detail: str
+
+
+def _first_line(output: str) -> str:
+    """Return the first non-empty line of command output, stripped.
+
+    Args:
+        output: Combined command output, standard output first.
+
+    Returns:
+        The line, or an empty string.
+    """
+    for line in output.splitlines():
+        if line.strip():
+            return line.strip()
+    return ""
+
+
+def resolve_docker_daemon(host: Host) -> DockerDaemon:
+    """Establish whether the Docker daemon the CLI uses runs on this host.
+
+    The other checks read this host's ``/sys``, ``/proc`` and mounts. A daemon
+    reached through ``DOCKER_HOST`` or a remote context would start the arms,
+    bind-mount the tier path and count I/O on its own host. The daemon counts
+    as local only when the CLI's endpoint is a ``unix://`` socket and the
+    daemon's reported name equals this host's kernel host name.
+
+    Args:
+        host: Host view.
+
+    Returns:
+        The daemon's location. ``local`` is False whenever either condition
+        is not established, including when Docker is absent.
+    """
+    code, output = host.run(list(DOCKER_ENDPOINT_COMMAND))
+    endpoint = _first_line(output) if code == 0 else ""
+    if not endpoint:
+        said = _first_line(output)[:160] or "no output"
+        return DockerDaemon(
+            "", False, f"the Docker endpoint could not be read (exit {code}: {said})"
+        )
+    if not endpoint.startswith("unix://"):
+        return DockerDaemon(
+            endpoint, False, f"the Docker endpoint is {endpoint}, not a local socket"
+        )
+    code, output = host.run(list(DOCKER_NAME_COMMAND))
+    daemon_name = _first_line(output) if code == 0 else ""
+    if not daemon_name:
+        return DockerDaemon(
+            endpoint,
+            False,
+            f"docker info did not report the daemon's host name (exit {code})",
+        )
+    host_name = (host.read_text(HOSTNAME_FILE) or "").strip()
+    if not host_name:
+        return DockerDaemon(
+            endpoint, False, f"this host's name could not be read from {HOSTNAME_FILE}"
+        )
+    if daemon_name != host_name:
+        return DockerDaemon(
+            endpoint,
+            False,
+            f"the daemon behind {endpoint} reports host {daemon_name!r}; "
+            f"this host is {host_name!r}",
+        )
+    return DockerDaemon(
+        endpoint, True, f"daemon on this host ({host_name}) at {endpoint}"
+    )
 
 
 @dataclass(frozen=True)
@@ -594,7 +699,7 @@ def _docker_root(host: Host) -> str:
 
 
 def check_dedicated_disk(
-    host: Host, request: TierCheckRequest, device: TierDevice
+    host: Host, request: TierCheckRequest, device: TierDevice, docker: DockerDaemon
 ) -> CheckResult:
     """T2: the tier is on its own mount, on a disk holding nothing else of the run.
 
@@ -602,6 +707,8 @@ def check_dedicated_disk(
         host: Host view.
         request: What to check.
         device: Resolution of the tier mount.
+        docker: Location of the Docker daemon; its root is compared only when
+            the daemon is confirmed to run on this host.
 
     Returns:
         ``FAIL`` when the tier path is on the root filesystem itself, ``WARN``
@@ -633,16 +740,20 @@ def check_dedicated_disk(
         )
     tier_disks = physical_disks(host, device.disk)
     candidates = [("/", "root filesystem")]
-    docker_root = _docker_root(host)
+    docker_root = _docker_root(host) if docker.local else ""
     if docker_root:
         candidates.append((docker_root, "Docker root"))
     if request.model_dir:
         candidates.append((request.model_dir, "model directory"))
     shared: list[str] = []
     compared: list[str] = []
-    not_compared: list[str] = (
-        [] if docker_root else ["Docker root (docker info unavailable)"]
-    )
+    not_compared: list[str] = []
+    if not docker.local:
+        not_compared.append(
+            f"Docker root (daemon not confirmed on this host: {docker.detail})"
+        )
+    elif not docker_root:
+        not_compared.append("Docker root (docker info unavailable)")
     for path, label in candidates:
         other = resolve_path_device(host, path)
         if not other.resolved:
@@ -960,6 +1071,10 @@ def check_cgroup_io(host: Host) -> CheckResult:
 
     Returns:
         ``FAIL`` without cgroup v2 or its ``io`` controller, else ``PASS``.
+        The ``PASS`` finding says whether ``io`` is already enabled for child
+        cgroups (root ``cgroup.subtree_control``). When it is not, the
+        container runtime enables it as it starts a container, and the run
+        records the counter as unavailable if that does not happen.
     """
     title = "cgroup v2 io controller"
     controllers = host.read_text("/sys/fs/cgroup/cgroup.controllers")
@@ -980,6 +1095,19 @@ def check_cgroup_io(host: Host) -> CheckResult:
             "cgroup v2 is mounted but the io controller is not available",
             why,
             fix,
+        )
+    subtree = host.read_text("/sys/fs/cgroup/cgroup.subtree_control")
+    if subtree is not None and "io" in subtree.split():
+        return CheckResult(
+            "T6", title, PASS, "cgroup v2 with the io controller, enabled for child cgroups"
+        )
+    if subtree is not None:
+        return CheckResult(
+            "T6",
+            title,
+            PASS,
+            "cgroup v2 with the io controller, not yet enabled for child cgroups; the container "
+            "runtime enables it when it starts a container",
         )
     return CheckResult("T6", title, PASS, "cgroup v2 with the io controller")
 
@@ -1198,6 +1326,79 @@ def check_container_prerequisites(host: Host, request: TierCheckRequest) -> Chec
     return CheckResult("T10", title, PASS, "/run/udev and /etc/cufile.json present")
 
 
+def check_container_runtime(host: Host, docker: DockerDaemon) -> CheckResult:
+    """T13: this user reaches a local Docker daemon with the NVIDIA runtime registered.
+
+    The reference launchers start every arm, recompute included, with
+    ``docker run --gpus``, so this applies to both arms. The check does not
+    start a container: it establishes daemon access and runtime registration,
+    not that a GPU container runs with the image.
+
+    Args:
+        host: Host view.
+        docker: Location of the Docker daemon (:func:`resolve_docker_daemon`).
+
+    Returns:
+        ``FAIL`` when ``docker info`` does not succeed for this user; a
+        required ``SKIP`` when it succeeds but the daemon is not confirmed to
+        run on this host (this outranks a missing runtime); ``WARN`` when a
+        local daemon lists no ``nvidia`` runtime; else ``PASS``.
+    """
+    title = "Docker access and NVIDIA runtime"
+    code, output = host.run(list(DOCKER_RUNTIMES_COMMAND))
+    if code != 0:
+        lines = output.strip().splitlines()
+        said = lines[-1].strip()[:160] if lines else "no output"
+        return CheckResult(
+            "T13",
+            title,
+            FAIL,
+            f"docker info did not succeed for this user (exit {code}): {said}",
+            "The reference launchers start every arm with docker run --gpus, and the per-device "
+            "counter reads the container's cgroup; without a Docker daemon this user can reach, "
+            "no arm starts.",
+            "Install Docker and the NVIDIA Container Toolkit, start the daemon, and give this user "
+            "access to it; membership of the docker group is root-equivalent "
+            "(runbook prerequisites).",
+        )
+    if not docker.local:
+        return CheckResult(
+            "T13",
+            title,
+            SKIP,
+            f"docker info works, but the daemon is not confirmed to run on this host: "
+            f"{docker.detail}",
+            "The other checks read this host's devices, mounts and cgroups, while docker run "
+            "starts the arms, bind-mounts the tier path and counts I/O wherever the daemon runs; "
+            "the results of two hosts would be combined.",
+            "Point the Docker CLI at this host's daemon: unset DOCKER_HOST and DOCKER_CONTEXT "
+            "(either overrides the context chosen with docker context use), select a local "
+            "context such as docker context use default, and rerun in the same shell as the "
+            "launchers; or run tier-check on the daemon's host. "
+            "Inside a container the host names differ even on the same machine; run tier-check "
+            "on the host itself.",
+        )
+    runtimes = output.split()
+    if "nvidia" not in runtimes:
+        listed = ", ".join(runtimes) if runtimes else "none listed"
+        return CheckResult(
+            "T13",
+            title,
+            WARN,
+            f"docker info works, but no nvidia runtime is registered (runtimes: {listed})",
+            "docker run --gpus needs the NVIDIA Container Toolkit; this configuration has not "
+            "been verified here, and without the toolkit the first arm fails to start.",
+            "Install the NVIDIA Container Toolkit, register it with "
+            "nvidia-ctk runtime configure --runtime=docker, and restart Docker.",
+        )
+    return CheckResult(
+        "T13",
+        title,
+        PASS,
+        f"docker info works with the {docker.detail}; nvidia runtime registered",
+    )
+
+
 def check_staging_pool(request: TierCheckRequest) -> CheckResult:
     """T11: the cuFile staging pool against one entry and the working set.
 
@@ -1348,7 +1549,7 @@ def run_tier_check(request: TierCheckRequest, host: Host) -> dict[str, object]:
     Returns:
         Mapping with ``tier_check_version``, ``tier_mount``, ``arm``, ``device``
         (``key``, ``scope``, ``disk``), ``checks`` (one mapping per check in
-        T1–T12 order), ``counts`` (per status) and ``overall``.
+        T1–T13 order), ``counts`` (per status) and ``overall``.
 
     Raises:
         ValueError: When ``request.arm`` is not a known arm.
@@ -1358,9 +1559,10 @@ def run_tier_check(request: TierCheckRequest, host: Host) -> dict[str, object]:
             f"unknown arm {request.arm!r}; expected one of {', '.join(ARMS)}"
         )
     device = resolve_path_device(host, request.tier_mount)
+    docker = resolve_docker_daemon(host)
     results = [
         check_device(host, request, device),
-        check_dedicated_disk(host, request, device),
+        check_dedicated_disk(host, request, device, docker),
         check_device_class(host, device),
         check_native_multipath(host, device),
         check_stacking(host, device),
@@ -1371,9 +1573,10 @@ def run_tier_check(request: TierCheckRequest, host: Host) -> dict[str, object]:
         check_container_prerequisites(host, request),
         check_staging_pool(request),
         check_tier_directory(host, request),
+        check_container_runtime(host, docker),
     ]
     return {
-        "tier_check_version": "0.1.0",
+        "tier_check_version": "0.2.0",
         "tier_mount": request.tier_mount,
         "arm": request.arm,
         "device": {"key": device.key, "scope": device.scope, "disk": device.disk},

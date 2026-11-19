@@ -33,6 +33,18 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 
 ### Changed
 
+- **`tier-check` checks Docker access and the NVIDIA runtime (T13).** The reference launchers
+  start every arm with `docker run --gpus`, but no check covered Docker itself: on a host without it,
+  the POSIX arm could read `READY WITH WARNINGS` when T2 had already found a shared disk. T13 runs
+  `docker info` as this user and fails when it does not succeed; it warns when no `nvidia` runtime is
+  registered. It applies to both arms. It does not start a container. The daemon must also be
+  confirmed on this host (a `unix://` endpoint and a matching host name); otherwise, for example
+  through `DOCKER_HOST` or a remote context, T13 gives a required `SKIP`, and T2 no longer compares
+  that daemon's root directory with this host's disks. T6 now also says whether the `io` controller is already
+  enabled for child cgroups; on a host where no container has run yet it usually is not, and the
+  container runtime enables it when it starts one. The usage error for only one of
+  `--cufile-buf-mib` and `--mib-per-chunk` now says they must be given together
+  ([TIER-CHECK](docs/TIER-CHECK.md#4-the-checks)).
 - **`geometry` refuses unsupported declared cache layouts.** The standard formula counts every
   layer as full attention and has no term for recurrent state. Explicit `layer_types` must now
   contain one `full_attention` name per declared layer. Mixed, uniform non-full-attention,
@@ -91,6 +103,11 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   above, a correction under that rule.
 - **Changed, incompatible:** `geometry` moves up one MINOR version, because configs it used to
   answer with a number now exit 2. Its output format is unchanged.
+- **Changed, incompatible:** the `tier-check` result moves up one MINOR version: it holds thirteen
+  checks. A host where `docker info` fails for this user now reads `NOT READY` (exit 1) where it
+  could read `READY WITH WARNINGS`, and one whose Docker lists no `nvidia` runtime reads
+  `READY WITH WARNINGS` where it could read `READY`. A daemon not confirmed on this host now gives
+  `NOT READY`. A new schema file describes it; the earlier one stays for results written before.
 
 ### Known limits
 
