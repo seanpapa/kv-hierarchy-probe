@@ -16,6 +16,10 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 - **`preflight [ARM]`.** `preflight posix` and `preflight recompute` skip `gdscheck` and say so;
   `preflight` with no arm, or `preflight gds`, still requires it and now names a missing `gdscheck`
   instead of stopping on the shell's error.
+- **Runbook: preparing a host.** What to install for each arm and how to check it, which gates a
+  host with one GPU and no GDS can produce, disk layout, a GPU shared with a resident service,
+  model directory forms, and sizing the fillers against the 3 GiB CPU tier for models with smaller
+  KV chunks ([scripts/README.md](scripts/README.md#preparing-a-host)).
 
 ### Fixed
 
@@ -26,6 +30,13 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   exists; dots within a directory name remain allowed.
 - The controlled launcher started the recompute arm only under bash 4.4 or later: an empty option
   array is unset under `set -u` in older bash.
+- The runbook's image check imported `lmcache.c_ops` alone, which fails with `libc10.so` on a
+  working image because `c_ops` needs torch loaded first; it now imports `torch, lmcache.c_ops`.
+  Serving was not affected.
+- The script table listed the controlled launcher as producing Gates 1 and 5; its context runs
+  (runbook step 4) also produce Gate 2.
+- TIER-CHECK T6 said `io` is enabled for child cgroups when the first container starts; on the
+  host checked it was enabled when the Docker service started.
 
 ## 0.2.0 — 2026-11-19
 

@@ -13,6 +13,64 @@ Gates 3 and 4 compare against. A GDS-capable filesystem on a **whole** NVMe disk
 counter cannot attribute a partition), with `gdscheck -p` reporting `use_compat_mode : false`.
 cgroup v2, Docker with the NVIDIA runtime, a vLLM + LMCache image ([Getting an image](#getting-an-image)), the model directory on the host,
 `sudo`, Python 3.10 or newer. Loopback ports 8104 and 8110 free. Nothing else using either GPU.
+[Preparing a host](#preparing-a-host) says how to install and check each item, and which gates a
+host with one GPU and no GDS can produce.
+
+### Preparing a host
+
+**What a host can produce.** Gates 3 and 4 are measured on the GDS arm and compare against the
+recompute reference on the second GPU. Gates 1, 2 and 5 also run on the POSIX arm: the controlled
+launcher's Gate 1 counter reads the tier device through the container's cgroup, which does not need
+`nvidia-fs`.
+
+| Host | Arms | Gates this runbook produces |
+|---|---|---|
+| Two GPUs, native GDS on a whole NVMe disk | recompute, gds | 1–5 (the recorded configuration) |
+| One GPU, no GDS, a local NVMe disk for the tier | recompute, posix | 1, 2, 5 — `tier-check --arm posix`, `preflight posix`, `one posix 1` in step 4, `concurrency-posix` in step 5; declare a `posix` arm instead of `gds` in step 9. Checked on one such host |
+
+Other shapes, such as GDS with one GPU, have not been run: steps 4 and 5 use only GPU 0, but steps 6
+and 7 as written expect the reference on GPU 1. The report marks a gate that was not produced as
+not supplied, and the overall verdict is then `PARTIAL`, not `PASS`.
+
+**Install, then check.** `tier-check` (step 2) checks most of these items read-only; the column
+names the check that covers each one.
+
+| Item | Needed for | How to check |
+|---|---|---|
+| NVIDIA driver | every arm | `nvidia-smi -L` lists the GPUs |
+| Docker Engine, daemon on this host | every arm | `docker version` shows client and server; T13 |
+| NVIDIA Container Toolkit, runtime registered with Docker (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker) | every arm | `docker info --format '{{range $k, $v := .Runtimes}}{{$k}} {{end}}'` lists `nvidia`; `docker run --rm --gpus all <any CUDA base image> nvidia-smi -L` lists the GPU inside the container; T13 |
+| cgroup v2 with the `io` controller | Gate 1 in the controlled launcher (steps 4 and 5, either arm) | T6. `cat /sys/fs/cgroup/cgroup.subtree_control` lists `io` once it reaches child cgroups. On one host where it did not, `io` appeared when systemd started the Docker service, before the first container ran |
+| Python 3.10 or newer and this package | `tier-check`, `doctor`, `ingest`, `report` | `python3 -m kvprobe doctor` |
+| A GPU that NVIDIA lists as supported by GDS | the GDS arm | otherwise cuFile runs in compat mode, which T8 reports |
+| CUDA toolkit with the GDS tools (`gdscheck`) | the GDS arm | T8 runs `gdscheck -p`; it must not report compat mode |
+| `nvidia-fs` module, counters on (`rw_stats_enabled`), `/run/udev`, `/etc/cufile.json` | the GDS arm | T9, T10; [precondition 7](#preconditions-on-the-host) for the counters after a reboot |
+| The tier filesystem: XFS, or ext4 with `data=ordered` written in its mount options | the GDS arm | T7 ([FAILURE-CATALOG §4](../docs/FAILURE-CATALOG.md#4-ext4-mounted-without-an-explicit-dataordered-stack)) |
+
+Membership in the `docker` group gives that user root-equivalent access to the host. Grant it
+deliberately; the launchers need it, and `sudo` besides for the tier directory.
+
+**Disks.** Put the tier on a whole NVMe disk of its own, and the model and Docker's root directory
+(`docker info --format '{{.DockerRootDir}}'`) on other disks: T1 warns about a partition, T2 about a
+tier disk that holds anything else. The built image and its base image together take tens of
+gigabytes in Docker's root directory.
+
+**A shared server.** The launchers stop when the selected GPU already has 5,000 MiB or more in use;
+they never stop another user's process. A resident inference service on that GPU therefore has to be
+stopped for the run: plan the window and how the service is restarted before you start.
+
+**The model.** Use a model with standard attention throughout; `kvprobe geometry` refuses hybrid
+layouts ([GEOMETRY](../docs/GEOMETRY.md#fail-closed-boundaries)), because the expected bytes that
+Gate 1 compares would be wrong. `MODEL_HOST_DIR` is mounted at `/models`, and `MODEL` may name a
+nested directory under it; `..` components are refused. A flat copy of a Hugging Face cache
+snapshot (`cp -rL <snapshot> <dir>`) is the form that has been run.
+
+**Fillers against the upper tier.** The launcher's CPU tier holds 3 GiB, and the fillers have to
+push the target out of it. One filler entry is `PROBE_MIB_PER_CHUNK` × `FILLER_TOKENS` / 256 MiB;
+step 1's six fillers of 4,096 tokens are 6 GiB at 64 MiB per chunk. For a model with smaller chunks,
+raise `FILLERS` in step 1 until the fillers together clearly exceed 3 GiB: at 14 MiB per chunk one
+filler is 224 MiB, and 16 fillers (3.5 GiB) is what was run. Too few fillers leave the target in the
+CPU tier; its next use then reads nothing from the tier device, and Gate 1 fails.
 
 ### Getting an image
 
@@ -47,13 +105,22 @@ git clone --branch v0.4.1 --depth 1 https://github.com/LMCache/LMCache.git lmcac
 docker build --build-arg TORCH_CUDA_ARCH_LIST=<your GPU's compute capability, e.g. 9.0> -t vllm-lmcache:0.4.1-src .
 ```
 
+`nvidia-smi --query-gpu=compute_cap --format=csv,noheader` prints the compute capability; an image
+built for one capability does not carry kernels for another, so build one per GPU class. Docker
+packages without buildx build with the legacy builder: the command above works with it, but
+BuildKit options such as `--progress` are refused.
+
 `USER root` is needed because the base image builds as a non-root user; removing `.git` lets
 `setuptools_scm` take the pinned version instead of inspecting a repository owned by another user.
-Check the result with `docker run --rm --gpus all <image> python3 -c "import lmcache.c_ops"` before
-starting the runbook. The tested image was produced by the same steps in two stages (prebuilt wheel
-first, then replaced by this source build); this single-file form has not itself been rebuilt and
-re-measured. Any other image works if it passes the runbook's preflight and the `c_ops` import, but it
-is a different configuration: record its digest, and expect your numbers to describe it, not ours.
+Check the result with `docker run --rm --gpus all <image> python3 -c "import torch, lmcache.c_ops"`
+before starting the runbook. Import `torch` first: `c_ops` finds torch's libraries only once torch
+is loaded, so importing it alone fails with `libc10.so: cannot open shared object file` even on a
+working image (vLLM imports torch first, so serving is not affected). The tested image was produced
+by the same steps in two stages (prebuilt wheel first, then replaced by this source build). This
+single-file form has since been rebuilt once, for another GPU class on a host without GDS, where it
+served the POSIX arm's Gates 1, 2 and 5; it has not been re-measured on the GDS configuration. Any
+other image works if it passes the runbook's preflight and the `c_ops` import, but it is a different
+configuration: record its digest, and expect your numbers to describe it, not ours.
 Pulling from `nvcr.io` is subject to NVIDIA's container terms.
 
 <!-- runbook:start -->
@@ -63,7 +130,9 @@ Pulling from `nvcr.io` is subject to NVIDIA's container terms.
 GPU-buffer hits; a smaller one cannot stage an entry whole
 ([FAILURE-CATALOG §13](../docs/FAILURE-CATALOG.md#staging-buffer-full)).
 `PROBE_MIB_PER_CHUNK` is the KV size of a 256-token chunk of *your* model (64 for Qwen2.5-32B,
-see [below](#set-probe_mib_per_chunk-for-the-model-you-are-serving)).
+see [below](#set-probe_mib_per_chunk-for-the-model-you-are-serving)). `FILLERS=6` is sized for 64 MiB
+per chunk; a model with smaller chunks needs more ([Preparing a host](#preparing-a-host), "Fillers
+against the upper tier").
 
 ```bash
 export IMAGE=${IMAGE:?your vLLM+LMCache image} GDS_MOUNT=${GDS_MOUNT:?the GDS filesystem mount}
@@ -262,7 +331,7 @@ See the [common checklist](../docs/CHECKLIST.md) for coverage and manual respons
 | Script | Gates | Produces |
 |---|---|---|
 | `g2_context_sweep.sh` + `g2_context_sweep.py` | 1, 2 | Each arm as a line — fixed cost plus per-token cost — across a context sweep, with the crossing against recompute. Per-request `nvidia-fs` read bytes and a tier-purity verdict for every measurement |
-| `g5_controlled_kv_experiment.sh` + `g5_controlled_kv_experiment.py` | 1, 5 | Order-randomized repeats of the arms at one context, and a concurrency sweep with per-request correctness and tier gates |
+| `g5_controlled_kv_experiment.sh` + `g5_controlled_kv_experiment.py` | 1, 2, 5 | Order-randomized repeats of the arms at one context, and a concurrency sweep with per-request correctness and tier gates |
 | `g3_admission_cost.sh` + `g3_admission_cost.py` | 1, 3 | Per-entry admission cost and realized break-even reuse count. Every target-tier, fallback, store-unattributed, or unattributed attempt is retained; host-wide `nvidia-fs` counters classify rather than filter samples |
 | `g4_capacity_sweep.sh` + `g4_capacity_sweep.py` | 1, 4 | Working-set sweep that finds the DRAM→NVMe crossover, classifying each retrieval as DRAM-resident or device-served by `nvidia-fs` read bytes; keeps a write/read record per store and retrieval |
 | `tools/nixl_matched.sh` (+ `g5_controlled_kv_experiment.py`) | 1 | Preserves the LMCache v0.4.1 **NIXL static + `GDS_MT`** matched reproduction. It is not a dynamic-mode runner. **Full recipe: [`../docs/NIXL-STATIC-GDS-MATCHED.md`](../docs/NIXL-STATIC-GDS-MATCHED.md)** |
