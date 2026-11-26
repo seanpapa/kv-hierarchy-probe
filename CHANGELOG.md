@@ -4,7 +4,12 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
-## Unreleased
+## 0.2.1 — 2026-11-26
+
+A compatible release under the pre-1.0 rule: no data contract, verdict rule or report output
+changes. A host with one GPU and no GDS can now produce Gate 5 on the POSIX arm, the runbook says
+how to prepare a host and its image check no longer fails on a working image, the Gate 1 guide
+becomes an execution walkthrough, and the package declares its licence as an SPDX expression.
 
 ### Added
 
@@ -26,7 +31,9 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   model directory forms, and sizing the fillers against the 3 GiB CPU tier for models with smaller
   KV chunks ([scripts/README.md](scripts/README.md#preparing-a-host)). The single-GPU POSIX path
   names the skipped steps, its arm configuration, cleanup and three-file ingest, and the expected
-  `PARTIAL` verdict when Gates 3 and 4 were not measured.
+  `PARTIAL` verdict when Gates 3 and 4 were not measured. Getting an image says how to read the
+  GPU's compute capability for `TORCH_CUDA_ARCH_LIST`, which can cover several capabilities and
+  PTX, and that Docker without buildx builds with the legacy builder.
 
 ### Fixed
 
@@ -44,8 +51,6 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   (runbook step 4) also produce Gate 2.
 - TIER-CHECK T6 said `io` is enabled for child cgroups when the first container starts; on the
   host checked it was enabled when the Docker service started.
-- The image-build guidance now asks for compatible kernel code for each target GPU instead of
-  requiring one image per GPU class; one extension build can include multiple capabilities and PTX.
 
 ### Changed
 
@@ -55,6 +60,15 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   to retain build support. Built packages carry the same
   LICENSE and NOTICE files and now state `License-Expression: Apache-2.0`. An install with
   `--no-build-isolation` needs setuptools 77 or newer in that environment.
+- **Unchanged:** every contract; [VERSIONING](docs/VERSIONING.md#history) lists the versions
+  this release writes and reads.
+
+### Known limits
+
+- The POSIX-only Gate 5 sweep and the host preparation guide were exercised on one host with one
+  GPU and no GDS. Such a host does not produce Gates 3 and 4, so its overall verdict is `PARTIAL`.
+  The single-file Dockerfile built there has not been re-measured on the GDS configuration.
+- The [known limits of `0.2.0`](#020--2026-11-19) still apply.
 
 ## 0.2.0 — 2026-11-19
 

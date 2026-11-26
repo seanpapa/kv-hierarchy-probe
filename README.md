@@ -186,9 +186,10 @@ one. See [Profiles and version direction](docs/PROFILES.md).
 
 ## Project status
 
-**Latest release: `v0.2.0` (2026-11-19)**, which tightens the Gate 3 and Gate 4 pass conditions,
-refuses unsupported declared layouts in `geometry` and adds a Docker access check to `tier-check`;
-`v0.1.1` (2026-11-15) added `tier-check`, and the first public release was `v0.1.0` (2026-11-13). The portable CLI, normalized evidence contract, five-gate
+**Latest release: `v0.2.1` (2026-11-26)**, which lets a host without GDS produce Gate 5 on the
+POSIX arm, adds host preparation to the runbook and fixes its image check; `v0.2.0` (2026-11-19)
+tightened the Gate 3 and Gate 4 pass conditions, `v0.1.1` (2026-11-15) added `tier-check`, and the
+first public release was `v0.1.0` (2026-11-13). The portable CLI, normalized evidence contract, five-gate
 assessment, geometry tools, and one reference implementation are available; the tags are listed
 under GitHub Releases and their notes are in the [CHANGELOG](CHANGELOG.md). Development
 continues on `main`, and data contracts may change before 1.0 under [VERSIONING](docs/VERSIONING.md).

@@ -27,7 +27,7 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 
 | Field | Written | Also read | What it versions | Defined in |
 |---|---|---|---|---|
-| `version` | `0.2.0` | — | The package | `pyproject.toml` |
+| `version` | `0.2.1` | — | The package | `pyproject.toml` |
 | `schema_version` | `0.3.2` | `0.3.0`, `0.3.1`, `0.3.2` | The evidence document that `report` judges | `kvprobe/ingest.py`, `kvprobe/report.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
 | `assessment_version` | `0.7.1` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
 | `normalized_by.version` | `0.4.3` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
@@ -48,6 +48,10 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 The registry above is the current state of `main`. Each release below lists the contract versions it
 ships; a package release does not reset them. The [changelog](../CHANGELOG.md) describes what changed
 for a user.
+
+### 0.2.1 — 2026-11-26
+
+- **Unchanged:** every contract keeps the version it had in `0.2.0`; only the package version moves.
 
 ### 0.2.0 — 2026-11-19
 
