@@ -8,6 +8,11 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 
 ### Added
 
+- **Gate 1 execution walkthrough.** `docs/GATE1.md` starts with three synthetic verdicts, then
+  connects reference-stack preparation, matched context collection, raw file names, cleanup,
+  `ingest` and `report`. It explains why a valid Gate 1/2-only run remains `PARTIAL` with report
+  exit 1, keeps optional NVMe diagnostics after the main path, and preserves incoming anchors.
+  No measurement, verdict rule or data contract changes.
 - **Gate 5 on a host without GDS.** The controlled launcher's `concurrency-posix` mode runs the
   concurrency sweep on the POSIX arm alone and writes `concurrency-posix.json`, which `ingest` judges
   as Gate 5 against a configuration that declares a `posix` arm. Before, the only sweeps were
