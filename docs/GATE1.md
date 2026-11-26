@@ -1,61 +1,164 @@
 # Gate 1: establish what your measurement can claim
 
-This is the next step after [first-visit](FIRST-VISIT.md).
-The visitor path is **first-visit → Gate 1 → Gates 2–5**. Gate 1 establishes
-measurement validity, not a benchmark score or a one-time host certificate.
-Repeat its checks at every measured point in Gates 2–5.
+Start here after [first-visit](FIRST-VISIT.md): **read an example → prepare your run → collect → report**.
+Gate 1 asks whether the intended tier served the KV data, with correct output and external byte
+evidence. Repeat that validation at every measured point in Gates 2–5.
 
-## Fast path: produce four reviewable items
+The reference path below uses `g5_controlled_kv_experiment.sh one` to collect matched context runs
+for Gates 1 and 2. There is no additional `g1_*` benchmark: `ingest` derives expected bytes from the
+recorded configuration and normalizes observations; `report` judges them. The optional
+`kvprobe gate1` commands are a separate [NVMe observation route](#optional-nvme-walkthrough).
 
-Use the four items below as the working path. Each linked reference provides
-additional detail when that step needs it.
+## 1. Read a verdict without a GPU
 
-| Step | Do this | Keep this output | Stop when |
-|---|---|---|---|
-| 1. Expected bytes | Run [`geometry`](GEOMETRY.md#five-minute-path) for **your model and live runtime settings**. It is not Qwen-specific. | `geometry.json` | The model layout is refused, or dtype/chunk/TP/PP cannot be matched to the serving process. |
-| 2. Exact run setup | Follow the short [configuration workflow](CONFIGURATION.md#five-minute-path): replace the example with values from the live process and `geometry.json`, then generate a hash that detects setup drift. | `configuration.json` and `configuration.sha256` | Any model, backend, build, device, counter scope or mount value cannot be verified against the live process. |
-| 3. Evidence route | Choose the reference counter path, another-stack producer, or optional NVMe observation from [Collect evidence](#3-collect-evidence). | Raw counters, request intervals, correctness and fallback evidence | No external signal can identify the intended tier for each controlled interval. |
-| 4. Verdict | Normalize and run `report`; read Gate 1 before any timing result. | Evidence JSON and report | Proceed to a tier-performance claim only after Gate 1 passes. |
+From the repository root, run these three synthetic examples, one command at a time:
 
-For a first visit, do **Step 1 only**, then return here. The optional NVMe
-walkthrough is not required unless NVMe command observation is relevant to your
-evidence route.
+```bash
+python3 -m kvprobe report examples/evidence/gate1-pass-filtered-counter.json
+python3 -m kvprobe report examples/evidence/attribution-unfiltered-counter.json
+python3 -m kvprobe report examples/evidence/phantom-tier-framework-hit.json
+```
 
-## 1. Carry forward the first-visit result
+Read the `Gate 1 Serving Tier Verification` row before any timing result.
 
-Keep the capability manifest and demo reports. A `CANDIDATE` adapter means
-prerequisites were detected, not that GDS or the serving stack works.
-`ADAPTER_REQUIRED` means the reference evidence source does not fit; another
-stack can still apply the method with its own controlled producer and counters.
+| Example | Gate 1 | Overall | What the row establishes | Next action |
+|---|---|---|---|---|
+| `gate1-pass-filtered-counter` | `PASS` | `PARTIAL` | 10/10 target-tier requests have device-filtered evidence and match expected bytes | Read Gate 2, then collect the missing Gates 3–5 |
+| `attribution-unfiltered-counter` | `UNPROVEN` | `UNPROVEN` | Expected bytes match 10/10, but device-filtered evidence is 0/10 | Collect a counter filtered to the tier's device |
+| `phantom-tier-framework-hit` | `FAIL` | `FAIL` | All 3/3 requests classified as target-tier hits moved zero bytes | Check whether the entry was stored and whether an upper buffer answered |
 
-Before a tier-performance experiment, require a matched recompute arm, external
-bytes aligned to controlled intervals, and a way to detect or disable fallback.
-If one is missing, stay at Gate 1: record the gap, prepare geometry or inspect
-existing evidence. Treat a diagnostic observation as preparation and reserve
-performance claims for complete evidence.
+The first example prints these selected lines:
+
+```text
+Overall: PARTIAL
+Gate 1 Serving Tier Verification: PASS — 10/10 target-tier requests have per-request, target-device-filtered byte evidence (corroborated); 10/10 request intervals have qualifying per-request observations; 10/10 target-tier requests match expected bytes; 0/10 moved no bytes from the tier
+Gate 2 Single-hit retrieval break-even: PASS — retrieval and recompute were measured on tier-verified requests
+```
+
+**All three commands exit 1.** In the first example, Gates 3–5 were not supplied, so the whole
+report remains `PARTIAL` despite Gate 1 passing. The other examples exit 1 for their actual
+`UNPROVEN` or `FAIL` verdict. These are report verdicts, not CLI crashes. Synthetic examples
+demonstrate the contract; your host needs its own controlled run.
+
+<a name="fast-path-produce-four-reviewable-items"></a>
 
 ## 2. Prepare the measurement
 
-1. Derive expected bytes with [geometry](GEOMETRY.md), using actual model,
-   dtype, chunk and parallelism inputs. Match the scope to the counter.
-2. Follow the [five-minute configuration path](CONFIGURATION.md#five-minute-path):
-   record the exact run setup, check it against the live process, and generate
-   its fingerprint (the SHA-256 used to detect setup drift).
-3. Apply the [common checklist](CHECKLIST.md): counter availability/scope,
-   residency/isolation, correctness, fallback and evidence retention.
-4. Choose the path below. Neither path automatically completes all checks.
+Choose the tier arm for this walkthrough in the same shell used for the runbook:
+
+```bash
+TIER_ARM=posix  # Use gds for the native cuFile GDS path
+```
+
+Both context runs below execute sequentially on the selected GPU. The separate GPU 1 recompute
+service in the all-five runbook is needed by Gates 3 and 4, not by this pair.
+
+| Prepare | Do this | Keep / check |
+|---|---|---|
+| Model and expected bytes | Run the [five-minute geometry path](GEOMETRY.md#five-minute-path) for your model and runtime. The reference launcher uses 256-token chunks and TP=1; match dtype to the serving process | `geometry.json`; use the per-device bytes for the device-filtered counter. Set the launcher's `PROBE_MIB_PER_CHUNK` accordingly |
+| Host and environment | Follow [Preparing a host](../scripts/README.md#preparing-a-host), then runbook steps 1 and 2 with the chosen arm's preflight block | Keep `IMAGE`, `MODEL_HOST_DIR`, `MODEL`, `PROBE_GPU_INDEX`, `OUT`, `RUN`, context/sample/filler settings in that shell. A `NOT READY` preflight stops preparation |
+| Exact run setup | Create `$OUT/configuration.json` from runbook step 9 now, before collecting. Use the POSIX arm replacement there when `TIER_ARM=posix`; follow the [configuration review](CONFIGURATION.md#five-minute-path) | Model, KV geometry, image, GPU identity, cache capacities, backend, paths, counter scope and workload must agree with the planned commands and the saved runtime records |
+
+Retain the reviewed geometry with the run, then fingerprint the configuration:
+
+```bash
+cp geometry.json "$OUT/geometry.json"
+python3 -m kvprobe fingerprint "$OUT/configuration.json" \
+  > "$OUT/configuration.sha256"
+```
+
+The fingerprint detects changes to the declared setup; it does not observe the serving process.
+Review the container inspection and startup logs after collection too. Keep an unknown setting or
+counter scope as a limitation, and resolve it before claiming tier performance.
+
+Apply the [common measurement checklist](CHECKLIST.md): correctness, counter scope, residency,
+isolation, fallback and evidence retention. `first-visit` capability candidates and `tier-check`
+readiness are preparation results, not serving verification.
 
 ## 3. Collect evidence
 
-| Path | What it does | Start with |
-|---|---|---|
-| Reference counter-based experiment | g2–g5 collect external deltas and workload results. Gate 1 validation applies within each experiment; there is no additional standalone benchmark. | [Scripts prerequisites and commands](../scripts/README.md) |
-| Another serving stack | Your producer supplies controlled intervals, independent expected bytes, external deltas and correctness. Missing evidence stays unsupported. | [Evidence producer contract](EVIDENCE.md#producing-evidence-from-a-run) |
-| Optional local NVMe observation | `gate1 plan → capture → analyze` adds namespace command observations around controlled phases. It does not replace serving review or the report contract. | [NVMe collector and input contract](GATE1-NVME-TRACE.md) |
+On the prepared reference stack, from the repository root and the same shell:
 
-NVMe tracing is optional; **Gate 1 validation is not**. A tier without NVMe
-tracing can use suitable external counters. Reference runners can create/remove
-containers and initialize cache paths: review their effects before running them.
+```bash
+EVIDENCE="$OUT/g5-$RUN" bash scripts/g5_controlled_kv_experiment.sh one recompute 1
+EVIDENCE="$OUT/g5-$RUN" bash scripts/g5_controlled_kv_experiment.sh one "$TIER_ARM" 1
+```
+
+The first command starts the recompute arm; the second replaces it with the chosen tier arm.
+They create/remove launcher-labelled containers and initialize their cache directories. Reserve
+the selected GPU and port, and review the [runbook effects and cleanup](../scripts/README.md#minimal-runbook--all-five-gates-one-configuration)
+before executing them. A failed request stays in the raw run; it is not removed to obtain a pass.
+
+| Command | Main output under `$OUT/g5-$RUN/` |
+|---|---|
+| `one recompute 1` | `randomized-run1-recompute.json` |
+| `one posix 1` | `randomized-run1-posix.json` |
+| `one gds 1` | `randomized-run1-gds.json` |
+
+The JSON records request outcomes, timings, byte observations and run identity. Container
+inspection and logs are retained alongside it. In a tier run, inspect correctness,
+`cgroup_read_bytes` and the counter's recorded block-device identity. This counter is filtered
+to that device; host-wide `nvidia-fs` observations alone do not establish that scope.
+
+Stop the measured arm and bundle the retained run using the same evidence directory:
+
+```bash
+EVIDENCE="$OUT/g5-$RUN" bash scripts/g5_controlled_kv_experiment.sh stop
+EVIDENCE="$OUT/g5-$RUN" bash scripts/g5_controlled_kv_experiment.sh collect
+```
+
+The raw directory remains, and `collect` prints the archive path under `$HOME`. Keep raw bundles
+outside the public repository.
+
+## 4. Normalize, read Gate 1 and continue
+
+Normalize the two raw files against the reviewed configuration:
+
+```bash
+python3 -m kvprobe ingest \
+  "$OUT/g5-$RUN/randomized-run1-${TIER_ARM}.json" \
+  "$OUT/g5-$RUN/randomized-run1-recompute.json" \
+  --configuration "$OUT/configuration.json" \
+  --run-id "kvprobe-$RUN" \
+  --output "$OUT/evidence.json"
+```
+
+`ingest` writes `evidence.json` and exits 0, or exits 2 with the field or identity it refused.
+It derives expected bytes from configuration KV geometry and recorded cacheable tokens, retaining
+observed bytes and attribution scope for the report to judge.
+
+```bash
+python3 -m kvprobe report "$OUT/evidence.json" --output "$OUT/report.txt"
+```
+
+Read `$OUT/report.txt`, starting with `Gate 1 Serving Tier Verification`. With valid evidence,
+this two-run path can give Gate 1 and Gate 2 `PASS`; Gates 3–5 are `SKIP_UNSUPPORTED` because
+their measurements were not supplied. Overall is then `PARTIAL`, `report` exits 1 and performance
+readings remain withheld. A violation or missing evidence can instead produce `FAIL` or `UNPROVEN`;
+read the actual verdict rather than expecting a pass.
+
+Retain four reviewable groups: geometry; configuration and fingerprint; raw runs and runtime
+records; normalized evidence and report.
+
+| Gate 1 result | What to do next |
+|---|---|
+| `PASS` | Read Gate 2's finding, then follow the remaining [runbook measurements](../scripts/README.md#minimal-runbook--all-five-gates-one-configuration) for Gates 3–5 supported by your host. Repeat Gate 1 validation at every measured point |
+| `UNPROVEN` | Collect the missing scope or observations named by [Next steps](#next-steps-in-the-report); matching byte totals on an unfiltered counter are insufficient |
+| `FAIL` | Inspect each measured violation and any additional missing evidence in [Next steps](#next-steps-in-the-report). Zero bytes can mean no stored entry or another buffer answering; the result alone does not choose the cause |
+
+On the single-GPU POSIX runbook path, Gate 5 is also available. Gates 3 and 4 need the reference
+GDS/second-GPU setup, so that path still ends `PARTIAL`; see [host shapes](../scripts/README.md#preparing-a-host).
+
+## Other evidence routes and diagnostics
+
+The reference `g2`, `g3` and `g4` producers use host-wide `nvidia-fs` counters. Preserve their
+declared scope; the controlled g5 path above supplies the device-filtered request observations.
+For another serving stack, provide controlled intervals, correctness, independent expected bytes
+and external observations through the [producer contract](EVIDENCE.md#producing-evidence-from-a-run).
+Missing evidence stays unproven.
+
+NVMe tracing is optional. It adds command observations around controlled phases and has its own
+quality and serving-review limits; it does not replace the counter-based report contract.
 
 ### Optional NVMe walkthrough
 
@@ -69,17 +172,6 @@ separate analysis view, and run strict offline `gate1 analyze`. Keep trace-on
 latency separate from performance measurements. The complete command sequence,
 privilege boundary, file contract, loss/order policies and current acceptance
 limits are in [NVMe command observation](GATE1-NVME-TRACE.md).
-
-## 4. Review and continue
-
-| Result | Next action |
-|---|---|
-| Missing control, unknown residency/fallback or insufficient scope | Keep the limitation; collect missing evidence or stop the unsupported claim. |
-| NVMe analyzer `usable` | Inspect bytes, commands, outside-phase I/O, loss and pairing. This is observation quality, not serving PASS. |
-| NVMe analyzer `incomplete` | Retain reasons and raw artifacts, keeping them visible without filtering or replacement. |
-| `report` Gate 1 `PASS` | Every request correct, with expected bytes on a counter filtered to the tier's device. Proceed to Gates 2–5, repeating Gate 1 checks at every point. |
-| `report` Gate 1 `UNPROVEN` | No violation measured, but the evidence cannot establish the tier served: usually a counter not filtered to the tier's device. Re-measure with the [per-device counter](EXTERNAL-RUNS.md#reaching-gate-1-pass). The report lists what is missing ([next steps](#next-steps-in-the-report)). |
-| `report` Gate 1 `FAIL` | A measured violation: wrong output, zero or too few bytes, or too many on a filtered counter. Fix the tier or the measurement before Gates 2–5. The report lists each violation and what to check ([next steps](#next-steps-in-the-report)). |
 
 ### Next steps in the report
 
