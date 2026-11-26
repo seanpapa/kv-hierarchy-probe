@@ -19,7 +19,9 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 - **Runbook: preparing a host.** What to install for each arm and how to check it, which gates a
   host with one GPU and no GDS can produce, disk layout, a GPU shared with a resident service,
   model directory forms, and sizing the fillers against the 3 GiB CPU tier for models with smaller
-  KV chunks ([scripts/README.md](scripts/README.md#preparing-a-host)).
+  KV chunks ([scripts/README.md](scripts/README.md#preparing-a-host)). The single-GPU POSIX path
+  names the skipped steps, its arm configuration, cleanup and three-file ingest, and the expected
+  `PARTIAL` verdict when Gates 3 and 4 were not measured.
 
 ### Fixed
 
@@ -37,6 +39,8 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
   (runbook step 4) also produce Gate 2.
 - TIER-CHECK T6 said `io` is enabled for child cgroups when the first container starts; on the
   host checked it was enabled when the Docker service started.
+- The image-build guidance now asks for compatible kernel code for each target GPU instead of
+  requiring one image per GPU class; one extension build can include multiple capabilities and PTX.
 
 ## 0.2.0 — 2026-11-19
 

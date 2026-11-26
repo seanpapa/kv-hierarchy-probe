@@ -28,6 +28,11 @@ launcher's Gate 1 counter reads the tier device through the container's cgroup, 
 | Two GPUs, native GDS on a whole NVMe disk | recompute, gds | 1–5 (the recorded configuration) |
 | One GPU, no GDS, a local NVMe disk for the tier | recompute, posix | 1, 2, 5 — `tier-check --arm posix`, `preflight posix`, `one posix 1` in step 4, `concurrency-posix` in step 5; declare a `posix` arm instead of `gds` in step 9. Checked on one such host |
 
+**Single-GPU POSIX order:** follow steps 1 and 2, using the POSIX preflight block, then steps 4 and
+5 with the POSIX commands. Skip steps 3, 6 and 7: the two context arms run sequentially on GPU 0,
+and Gates 3 and 4 are not measured on this path. In step 8 stop only the measured arm and collect
+its output; in steps 9 and 10 use the POSIX configuration entry and three-file ingest below.
+
 Other shapes, such as GDS with one GPU, have not been run: steps 4 and 5 use only GPU 0, but steps 6
 and 7 as written expect the reference on GPU 1. The report marks a gate that was not produced as
 not supplied, and the overall verdict is then `PARTIAL`, not `PASS`.
@@ -105,8 +110,10 @@ git clone --branch v0.4.1 --depth 1 https://github.com/LMCache/LMCache.git lmcac
 docker build --build-arg TORCH_CUDA_ARCH_LIST=<your GPU's compute capability, e.g. 9.0> -t vllm-lmcache:0.4.1-src .
 ```
 
-`nvidia-smi --query-gpu=compute_cap --format=csv,noheader` prints the compute capability; an image
-built for one capability does not carry kernels for another, so build one per GPU class. Docker
+`nvidia-smi --query-gpu=compute_cap --format=csv,noheader` prints the compute capability. Set
+`TORCH_CUDA_ARCH_LIST` to cover the intended GPUs; one extension build can include multiple
+capabilities and PTX ([PyTorch architecture options](https://docs.pytorch.org/docs/main/utils/cpp_extension.html#torch.utils.cpp_extension.CUDAExtension)).
+Verify the image on each target GPU and rebuild if compatible kernel code is missing. Docker
 packages without buildx build with the legacy builder: the command above works with it, but
 BuildKit options such as `--progress` are refused.
 
@@ -168,8 +175,19 @@ EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight
 )
 ```
 
-On a host without GDS, only the recompute and POSIX arms can run: give `tier-check` `--arm posix`
-without the two pool options, and run `preflight posix`, which skips `gdscheck` and says so.
+On the single-GPU POSIX path, replace the preceding preflight block with this one. It omits the
+GDS pool options, and `preflight posix` prints that it skips `gdscheck`.
+
+```bash
+(
+set -e
+python3 -m kvprobe tier-check --arm posix --tier-mount "$GDS_MOUNT" --model-dir "$MODEL_HOST_DIR"
+python3 -m kvprobe doctor
+sudo -v
+EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh preflight posix
+)
+```
+
 `preflight` also checks that `$MODEL` exists under `MODEL_HOST_DIR`; `MODEL` may name a nested
 directory there. Parent-directory (`..`) components in `MODEL` are refused before checking the
 host directory, so parent traversal cannot make an unrelated host directory satisfy preflight.
@@ -183,6 +201,8 @@ still requires the controlled run's evidence.
 
 **3. Recompute reference on GPU 1** (about 2 min). It serves until step 8.
 
+GDS path only; the single-GPU POSIX path skips this step.
+
 ```bash
 PROBE_GPU_INDEX=1 PORT=8110 CONTAINER=kvprobe-recompute-gpu1 EVIDENCE=$OUT/reference-$RUN bash scripts/g5_controlled_kv_experiment.sh serve recompute
 ```
@@ -194,16 +214,28 @@ EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh one recompute 
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh one gds 1
 ```
 
+For POSIX, keep `one recompute 1` above and replace `one gds 1` with:
+
+```bash
+EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh one posix 1
+```
+
 **5. Gate 5** — concurrency 1, 2, 4, 8 (about 10 min).
 
 ```bash
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh concurrency-gds
 ```
 
-On a host without GDS, `concurrency-posix` runs the same sweep on the POSIX arm and writes
+For POSIX, replace the preceding command with the following sweep. It writes
 `concurrency-posix.json`; declare a `posix` arm in step 9 and pass that file to `ingest`.
 
+```bash
+EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh concurrency-posix
+```
+
 **6. Gate 3** — ten admission/reuse attempts on a fresh tier arm (about 5 min).
+
+GDS path only; the single-GPU POSIX path skips this step.
 
 ```bash
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh serve gds
@@ -214,6 +246,8 @@ EVIDENCE=$OUT/admission-$RUN bash scripts/g3_admission_cost.sh collect
 **7. Gate 4** — a working-set sweep past the upper tier (about 4 min). The launcher's L1 holds three
 1 GiB entries, so the sweep runs to six.
 
+GDS path only; the single-GPU POSIX path skips this step.
+
 ```bash
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh serve gds
 PORT=8104 RECO_PORT=8110 ENTRY_TOKENS=$REP_CONTEXT WORKING_SETS="1 2 3 4 5 6" EVIDENCE=$OUT/capacity-$RUN bash scripts/g4_capacity_sweep.sh measure
@@ -221,6 +255,9 @@ EVIDENCE=$OUT/capacity-$RUN bash scripts/g4_capacity_sweep.sh collect
 ```
 
 **8. Cleanup** — stop both arms (only containers this tree labelled are removed) and bundle the runs.
+
+For the single-GPU POSIX path, run only the first `stop` line and the `collect` line; no GPU 1
+reference container was started.
 
 ```bash
 EVIDENCE=$OUT/g5-$RUN bash scripts/g5_controlled_kv_experiment.sh stop
@@ -252,14 +289,45 @@ cat > "$OUT/configuration.json" <<EOF
 EOF
 ```
 
+For POSIX, keep the shared configuration fields and the `recompute` entry above. In that
+here-document, replace the entire second arm entry (the `gds` object) with:
+
+```json
+    {"name": "posix", "backend": "lmcache_native_posix",
+     "tier_path": "${PROBE_POSIX_TIER_DIR:-/gds/lmcache-controlled-posix}",
+     "attribution_provider": "cgroup_blk", "staging_capacity_bytes": 0,
+     "eviction_policy": "targeted",
+     "eviction_parameters": {"fillers": $FILLERS, "filler_tokens": $FILLER_TOKENS}}
+```
+
+The variables expand when the here-document writes `configuration.json`; use the same filler
+values as the run. The POSIX arm has no cuFile staging pool.
+
 **10. Ingest and report.** `--expected-reuses` is your workload's reuse count per admitted entry,
 stated before you look at the result (1 is the most conservative).
 
+For the GDS all-five path:
+
 ```bash
 python3 -m kvprobe ingest "$OUT/g5-$RUN/randomized-run1-gds.json" "$OUT/g5-$RUN/randomized-run1-recompute.json" "$OUT/g5-$RUN/concurrency-gds.json" "$OUT/admission-$RUN/admission-cost.json" "$OUT/capacity-$RUN/capacity.json" --configuration "$OUT/configuration.json" --run-id "kvprobe-$RUN" --expected-reuses 1 --output "$OUT/evidence.json"
+```
+
+For the single-GPU POSIX path, ingest only the three files it produced:
+
+```bash
+python3 -m kvprobe ingest "$OUT/g5-$RUN/randomized-run1-posix.json" "$OUT/g5-$RUN/randomized-run1-recompute.json" "$OUT/g5-$RUN/concurrency-posix.json" --configuration "$OUT/configuration.json" --run-id "kvprobe-$RUN" --output "$OUT/evidence.json"
+```
+
+Then, for either path:
+
+```bash
 python3 -m kvprobe report "$OUT/evidence.json" --output "$OUT/report.txt" || echo "report exit $? (1 = overall not PASS; read $OUT/report.txt)"
 cat "$OUT/report.txt"
 ```
+
+On the POSIX path, valid measurements can give Gates 1, 2 and 5 `PASS`. Gates 3 and 4 are
+`SKIP_UNSUPPORTED`, so the overall verdict is `PARTIAL` and `report` exits 1. A failure or missing
+evidence can instead give `FAIL` or `UNPROVEN`; read each gate's actual verdict.
 
 <!-- runbook:end -->
 
@@ -267,6 +335,9 @@ cat "$OUT/report.txt"
 `admission-$RUN/`, `capacity-$RUN/` and `reference-$RUN/`, the first three with `SHA256SUMS`;
 `configuration.json`, `evidence.json`, `report.txt`. The `collect` steps also leave
 `g5-$RUN.tar.gz`, `admission-$RUN.tar.gz` and `capacity-$RUN.tar.gz` in `$HOME`.
+
+The single-GPU POSIX path has only `g5-$RUN/`, its archive, and the configuration, evidence and
+report files; it does not create admission, capacity or GPU 1 reference outputs.
 
 **Exit codes.** `ingest`: 0 written, 2 refused — the message names the field that did not match.
 `report`: 0 overall `PASS`, 1 overall not `PASS` (each gate's verdict and reason are printed), 2 the
