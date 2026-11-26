@@ -1,6 +1,6 @@
 # Roadmap and known limitations
 
-> Reviewed: 2026-11-19. This page states what the probe does not verify yet and what is planned.
+> Reviewed: 2026-11-26. This page states what the probe does not verify yet and what is planned.
 > It is not a schedule. Items move or close through pull requests that update this page.
 
 **Verified today:** local NVMe only, on the paths listed in
@@ -27,7 +27,8 @@ request evidence.
 
 ## Recently completed on main
 
-These changes ship in `0.2.0`; no completed change is unreleased. See
+The rows merged in #28–#31 ship in `0.2.1`, the rows before them in `0.2.0`; no completed change is
+unreleased. See [CHANGELOG — 0.2.1](../CHANGELOG.md#021--2026-11-26) and
 [CHANGELOG — 0.2.0](../CHANGELOG.md#020--2026-11-19) for details.
 
 | Change | What improved | Merged in |
@@ -40,6 +41,10 @@ These changes ship in `0.2.0`; no completed change is unreleased. See
 | Staging-pool cause in the Gate 4 text | Fallbacks beyond capacity now carry a note that a held staging pool can cause them, so the counts alone do not show a device fault, unless every fallback points to the store path; METHOD states that the same cause can raise Gate 3's reuses needed. No verdict changed ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #24 |
 | `geometry` layout refusal | Explicit `layer_types` must declare full attention for every layer; mixed, uniform non-full-attention and malformed declarations and known hybrid markers are refused instead of answered with the standard formula ([GEOMETRY](GEOMETRY.md#fail-closed-boundaries)) | #25 |
 | `tier-check` Docker access | T13 checks that this user reaches a Docker daemon on this host with the NVIDIA runtime registered; a host without Docker no longer reads ready ([TIER-CHECK](TIER-CHECK.md#4-the-checks)) | #26 |
+| Gate 5 without GDS | The controlled launcher's `concurrency-posix` sweep runs the POSIX arm alone, so a host without `nvidia-fs` can produce Gate 5; `preflight posix` and `preflight recompute` skip `gdscheck` ([runbook step 5](../scripts/README.md#minimal-runbook--all-five-gates-one-configuration)) | #28 |
+| Preparing a host | The runbook says what to install and check for each arm, which gates a host with one GPU and no GDS produces and how to size the fillers; its image check now loads torch first ([scripts/README](../scripts/README.md#preparing-a-host)) | #29 |
+| Gate 1 walkthrough | [GATE1](GATE1.md) goes from three synthetic verdicts through preparation, collection, `ingest` and `report`, and explains why a Gate 1/2-only run is `PARTIAL` | #30 |
+| Licence metadata | The package declares `Apache-2.0` as an SPDX expression, which clears setuptools' deprecation warning; the shipped LICENSE and NOTICE are unchanged | #31 |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit
