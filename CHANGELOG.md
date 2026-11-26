@@ -47,6 +47,15 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 - The image-build guidance now asks for compatible kernel code for each target GPU instead of
   requiring one image per GPU class; one extension build can include multiple capabilities and PTX.
 
+### Changed
+
+- **Packaging metadata.** `pyproject.toml` declares the licence as the SPDX expression
+  `Apache-2.0` with `license-files = ["LICENSE", "NOTICE"]`, and the build requires setuptools 77
+  or newer. The table form it replaces is deprecated, and setuptools stops building it after
+  2027-02-18, so a plain `pip install -e .` would eventually fail. Built packages carry the same
+  LICENSE and NOTICE files and now state `License-Expression: Apache-2.0`. An install with
+  `--no-build-isolation` needs setuptools 77 or newer in that environment.
+
 ## 0.2.0 — 2026-11-19
 
 An incompatible release under the pre-1.0 rule: two Gate 3 and Gate 4 verdicts changed for documents
