@@ -66,9 +66,12 @@ becomes an execution walkthrough, and the package declares its licence as an SPD
 ### Known limits
 
 - The POSIX-only Gate 5 sweep and the host preparation guide were exercised on one host with one
-  GPU and no GDS. Such a host does not produce Gates 3 and 4, so its overall verdict is `PARTIAL`.
+  GPU and no GDS. The current single-GPU POSIX runbook path does not measure Gates 3 and 4;
+  with valid evidence for Gates 1, 2 and 5, its overall verdict is `PARTIAL`.
   The single-file Dockerfile built there has not been re-measured on the GDS configuration.
-- The [known limits of `0.2.0`](#020--2026-11-19) still apply.
+- The all-five native GDS result remains limited to one host and one configuration. The POSIX-only
+  path adds checks on a second host, but independent reproduction remains unestablished.
+  The other [known limits of `0.2.0`](#020--2026-11-19) still apply.
 
 ## 0.2.0 — 2026-11-19
 
