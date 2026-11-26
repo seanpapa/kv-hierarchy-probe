@@ -44,6 +44,13 @@ demonstrate the contract; your host needs its own controlled run.
 
 ## 2. Prepare the measurement
 
+This walkthrough uses the reference stack. If first-visit's three questions do not all have a yes
+answer yet (a matched recompute arm, an external tier-byte counter aligned to each controlled
+request, a way to detect or disable fallback), stay at Gate 1: record the gap and make no
+tier-performance claim. Geometry and the configuration review below still prepare a later run. If
+first-visit reported `ADAPTER_REQUIRED`, collect with your own producer through
+[other evidence routes](#other-evidence-routes-and-diagnostics).
+
 Choose the tier arm for this walkthrough in the same shell used for the runbook:
 
 ```bash
@@ -76,6 +83,11 @@ isolation, fallback and evidence retention. `first-visit` capability candidates 
 readiness are preparation results, not serving verification.
 
 ## 3. Collect evidence
+
+Every tier request needs its own observation: the counter is read at the start and end of each
+request, so the bytes can be attributed to that request. A batch or run total cannot show which
+request read them. The reference launcher below records per-request observations; for another
+serving stack, see [other evidence routes](#other-evidence-routes-and-diagnostics).
 
 On the prepared reference stack, from the repository root and the same shell:
 
