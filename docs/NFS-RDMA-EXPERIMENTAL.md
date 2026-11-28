@@ -85,6 +85,10 @@ Reference-client replay separates `measurement_evidence` availability from `stac
 A completed request checkpoint can remain readable after a later teardown error or without a
 shutdown receipt. Actual parent-observed exit/signal/timeout outcomes remain visible. An
 unfinished request or corrupt required artifact cannot supply valid evidence.
+An error in the request callback or either quiet-control callback invalidates the capture.
+Known optional shutdown/cleanup diagnostic JSON is retained and decoded as stack health;
+unreadable diagnostic JSON does not veto otherwise valid measurement evidence. Required
+measurement JSON and all artifact containment/hash checks remain enforced.
 
 Availability, matching output and a normal exit are each insufficient for Gate 1. Source/runtime
 qualification and competing-I/O review remain required; adjacent quiet intervals alone do not

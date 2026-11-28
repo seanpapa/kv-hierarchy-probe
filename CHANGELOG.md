@@ -17,6 +17,11 @@ The reference path now produces G1-only assessments; generalized verified suppor
 
 ### Fixed
 
+- NFS reference ingest now carries request/quiet callback errors into an INVALID capture
+  instead of allowing matching output/bytes to pass despite a failed measurement phase.
+- Optional shutdown/cleanup diagnostic JSON no longer vetoes valid request evidence when its
+  contents are unreadable. Its raw bytes/hashes remain retained; required measurement JSON,
+  artifact containment and integrity checks stay strict.
 - Legacy NFS replay now confines the resolved `artifacts/` directory to the original bundle root,
   rejecting outside directory symlinks while retaining valid internal aliases.
 - Serving-candidate replay adds quiet-phase activity, READ RPC retry/timeout/error and request

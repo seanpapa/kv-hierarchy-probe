@@ -161,8 +161,9 @@ def capture_client_process(
 
     Returns:
         Parent-written process-manifest.json, even for launch error, nonzero exit,
-        signal or timeout. A failed child never becomes a serving PASS. A residual
-        process group or unsafe/mutable artifact tree prevents an artifact seal.
+        signal or timeout. Process outcome alone neither grants nor vetoes a
+        measurement verdict. A residual process group or unsafe/mutable artifact
+        tree prevents an artifact seal.
         This API requires a trusted single-process/in-process reference client;
         detached workers or hostile writers are outside its capture contract.
 

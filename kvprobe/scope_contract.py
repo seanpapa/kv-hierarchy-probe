@@ -14,7 +14,7 @@ def validate_scope_bindings(payload: Any) -> dict[str, str]:
 
     This API validates scope declarations and their bindings only. It does not
     validate the complete evidence envelope, read raw artifacts, assess a gate,
-    or authorize performance claims. Full report dispatch remains a later step.
+    or authorize performance claims. The report applies the separate gate policy.
 
     Args:
         payload: Parsed draft 0.4.0 evidence document.

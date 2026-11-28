@@ -26,6 +26,15 @@ from .nfs_qualification import (
 NFS_ADAPTER_NAME = "nfs-reference-adapter"
 NFS_ADAPTER_VERSION = "0.1.0-experimental"
 
+# These optional raw-format diagnostics are decoded by the stack-health reader.
+# Keep their bytes/hashes in the inventory without making JSON syntax a Gate 1
+# condition. No measurement JSON or similarly named file elsewhere is exempt.
+_STACK_DIAGNOSTICS = frozenset(
+    "candidate/client/" + prefix + name
+    for prefix in ("", "baseline/")
+    for name in ("shutdown.json", "reference-cleanup-state.json")
+)
+
 
 def _role(name: str) -> str:
     if "/proof/" in name or name.endswith(
@@ -71,8 +80,8 @@ def _inventory(root: Path) -> tuple[list[dict[str, str]], dict[str, list[str]]]:
             raise IngestError("reference artifact tree contains a link or special file")
         name = path.relative_to(root).as_posix()
         data = contained(root, name).read_bytes()
-        if path.suffix == ".json":
-            read_json(root, name)  # Malformed JSON is an input error, not zero.
+        if path.suffix == ".json" and name not in _STACK_DIAGNOSTICS:
+            read_json(root, name)  # Malformed measurement JSON remains an error.
         role = _role(name)
         identifier = f"nfs-original-{len(artifacts):04d}"
         artifacts.append(
@@ -200,8 +209,12 @@ def build_nfs_document(
         )
         measurement.update(
             {
-                "capture_status": "complete",
-                "capture_reason": "captured_request",
+                "capture_status": "invalid"
+                if observations["callback_errors"]
+                else "complete",
+                "capture_reason": "measurement_callback_error"
+                if observations["callback_errors"]
+                else "captured_request",
                 "identity_binding": binding,
                 "client_binding": True,
                 "interval_ns": [

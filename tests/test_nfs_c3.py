@@ -12,6 +12,7 @@ import unittest
 
 # First Party
 from kvprobe.ingest import IngestError
+from kvprobe.nfs_client import replay_client_execution
 from kvprobe.nfs_ingest import build_nfs_document
 from kvprobe.nfs_qualification import recognized_layout
 from kvprobe.report import (
@@ -217,6 +218,146 @@ class NfsAdapterTests(unittest.TestCase):
                 ],
                 "complete",
             )
+
+    def test_request_or_quiet_callback_failure_invalidates_capture(self) -> None:
+        for phase in ("request", "quiet_before", "quiet_after"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                cfg = raw_bundle(root)
+                client = root / "candidate/client"
+                path = client / "serving/serving-manifest.json"
+                manifest = json.loads(path.read_text())
+                manifest["phases"][phase]["error"] = "RuntimeError: phase failed"
+                path.write_text(json.dumps(manifest))
+                seal(client)
+                document = build_nfs_document(root, cfg, "synthetic-failed-phase")
+                self.assertFalse(list(validator().iter_errors(document)))
+                result = assess_evidence(document)
+                self.assertEqual(result["gates"][0]["status"], "INVALID")
+                self.assertEqual(result["overall"], "INVALID")
+                self.assertEqual(result["performance_claims"], "suppressed")
+                self.assertEqual(
+                    result["nfs_requests"][0]["reason_code"],
+                    "measurement_callback_error",
+                )
+
+    def test_unreadable_stack_diagnostics_do_not_veto_measurement(self) -> None:
+        for prefix in ("", "baseline/"):
+            for name in ("shutdown.json", "reference-cleanup-state.json"):
+                for bad in (b"{broken", b"[]", b"\xff"):
+                    with (
+                        self.subTest(prefix=prefix, name=name, bad=bad),
+                        tempfile.TemporaryDirectory() as temp,
+                    ):
+                        root = Path(temp)
+                        cfg = raw_bundle(root)
+                        expected = assess_evidence(
+                            build_nfs_document(root, cfg, "synthetic-diagnostic")
+                        )
+                        client = root / "candidate/client"
+                        (client / prefix / name).write_bytes(bad)
+                        if prefix:
+                            seal(client / "baseline")
+                        seal(client)
+                        raw = replay_client_execution(client)
+                        self.assertEqual(
+                            raw["measurement_evidence"]["status"], "available"
+                        )
+                        if not prefix:
+                            self.assertEqual(raw["stack_health"]["status"], "error")
+                        document = build_nfs_document(root, cfg, "synthetic-diagnostic")
+                        self.assertFalse(list(validator().iter_errors(document)))
+                        self.assertEqual(assess_evidence(document), expected)
+
+    def test_diagnostic_exemption_keeps_measurement_json_and_hashes_strict(
+        self,
+    ) -> None:
+        for name in (
+            "scope-before.json",
+            "candidate/client/frozen.json",
+            "candidate/client/serving/serving-manifest.json",
+            "candidate/client/io/implementation.json",
+            "candidate/client/io/shutdown.json",
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                cfg = raw_bundle(root)
+                (root / name).write_text("{broken")
+                seal(root / "candidate/client")
+                with self.assertRaises(IngestError):
+                    build_nfs_document(root, cfg, "synthetic-malformed-measurement")
+        for prefix in ("", "baseline/"):
+            with self.subTest(tampered=prefix), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                cfg = raw_bundle(root)
+                # Alter a sealed diagnostic without updating its original hash.
+                (root / "candidate/client" / prefix / "shutdown.json").write_bytes(
+                    b"{broken"
+                )
+                result = assess_evidence(
+                    build_nfs_document(root, cfg, "synthetic-tampered-diagnostic")
+                )
+                self.assertEqual(result["gates"][0]["status"], "INVALID")
+
+    def test_cli_separates_measurement_errors_from_diagnostic_errors(self) -> None:
+        for failure, expected in (("callback", "INVALID"), ("shutdown", "PASS")):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                cfg = raw_bundle(root)
+                client = root / "candidate/client"
+                if failure == "callback":
+                    path = client / "serving/serving-manifest.json"
+                    manifest = json.loads(path.read_text())
+                    manifest["phases"]["request"]["error"] = "RuntimeError: failed"
+                    path.write_text(json.dumps(manifest))
+                else:
+                    (client / "shutdown.json").write_text("{broken")
+                seal(client)
+                config = root / "configuration.json"
+                config.write_text(json.dumps(cfg))
+                output = root / "normalized.json"
+                ingested = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "kvprobe",
+                        "ingest",
+                        "--adapter",
+                        "nfs-reference",
+                        str(root),
+                        "--configuration",
+                        str(config),
+                        "--run-id",
+                        "synthetic-cli-error",
+                        "--output",
+                        str(output),
+                    ],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(ingested.returncode, 0, ingested.stderr)
+                reported = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "kvprobe",
+                        "report",
+                        str(output),
+                        "--format",
+                        "json",
+                    ],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(reported.returncode, 1, reported.stderr)
+                report = json.loads(reported.stdout)
+                self.assertEqual(report["gates"][0]["status"], expected)
+                self.assertEqual(
+                    report["overall"], "PARTIAL" if expected == "PASS" else "INVALID"
+                )
+                self.assertEqual(report["performance_claims"], "suppressed")
 
     def test_missing_scope_and_tampered_file_are_not_pass(self) -> None:
         for action, expected in [
