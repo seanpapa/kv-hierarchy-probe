@@ -2,7 +2,7 @@
 
 ![kv-hierarchy-probe — Verify the path before reporting performance](assets/kv-hierarchy-probe-hero-v2.png)
 
-*Conceptual workflow — only local NVMe is verified on hardware today; see [Scope](#scope--what-is-verified-today).*
+*Conceptual workflow — local NVMe has the five-gate reference workflow; NFS/RDMA has a limited Gate 1 reference path. See [Scope](#scope--what-is-verified-today).*
 
 **A measurement procedure for deciding whether a KV cache tier belongs in an LLM serving
 hierarchy.** It combines recorded configuration, expected KV bytes, and evidence from outside the
@@ -134,15 +134,17 @@ normalize it with `kvprobe ingest`.
 
 ## Scope — what is verified today
 
-The picture above draws three tiers. Only local NVMe has passed Gate 1 on hardware; REMOTE splits by how
-the storage is attached.
+The picture above draws three tiers. The established five-gate operational workflow uses local
+NVMe. A controlled, serialized NFS/RDMA reference request has also passed Gate 1; this limited path
+is available on main and is unreleased. REMOTE splits by how the storage is attached.
 
 | Tier in the picture | Role in this repository | Evidence today | Gate 1 today | Next |
 |---|---|---|---|---|
 | **NVMe** (local) — verified paths: buffered POSIX, LMCache native GDS and NIXL static `GDS_MT`; NIXL POSIX/mode-matrix paths are implemented but are not part of this verified set | The tier under test | Per-request bytes on the tier's block device (cgroup `io.stat`, filtered to that device); host-wide `nvidia-fs` as corroboration | **Can pass** — the three named paths were verified on a single-path device with native NVMe multipath disabled (`nvme_core` `multipath=N`) | Check byte attribution under native or dm multipath |
 | **DRAM** — CPU memory (LMCache's local CPU cache) | The upper tier that Gates 3 and 4 compare against | Inferred only: zero device read with TTFT well below recompute | **Cannot pass** — no per-request byte counter for memory; the classification is a heuristic | An evidence source for memory-tier hits |
 | **REMOTE · block attachment** — e.g. an NVMe-oF namespace mounted on the GPU server | Same path as local NVMe in principle: the namespace is a local block device | Same counters as local NVMe | **Not hardware-verified.** Native GDS availability depends on the platform, filesystem and transport; the reference runbook refuses `use_compat_mode: true`. The POSIX arm does not require a native GDS path. Fabric multipath splits the device the bytes are recorded on, and that is unverified (row above). Initiator bytes prove transfer from the target, not whether the target served them from cache or media | Hardware check over RDMA and TCP, single path and multipath |
-| **REMOTE · file/object attachment** — e.g. NFS over RDMA, object storage, network KV stores | Planned: as one endpoint's lower tier once an evidence provider exists; shared-cache and prefill/decode use belong to the disaggregated profile ([PROFILES](docs/PROFILES.md)) | No block device on the GPU server, so the device-filtered counter sees nothing; for GDS over NFS, host-wide `nvidia-fs` can corroborate only | **Cannot pass** today — at most `UNPROVEN` | An evidence adapter that counts per-request bytes at the client, connection or store |
+| **REMOTE · NFS/RDMA reference** | One endpoint's lower tier; a trusted tiny BF16 TP=1 producer, one serialized chunk retrieval | Retained client/output/KV originals, source/file-layout and bounded-scope evidence, and request-aligned NFS-service payload counters | **Reference request passed Gate 1**; `ingest --adapter nfs-reference` is available on main, unreleased. A G1 PASS keeps the overall report `PARTIAL` with G2–5 unmeasured and performance claims suppressed | Live producer setup guidance and integrated client-cache-negative coverage ([reference path](docs/NFS-RDMA-EXPERIMENTAL.md)) |
+| **REMOTE · other file/object attachment** — object storage, network KV stores and other NFS stacks/layouts | Planned: as one endpoint's lower tier once a qualified evidence adapter exists; shared-cache and prefill/decode use belong to the disaggregated profile ([PROFILES](docs/PROFILES.md)) | The local block-device counter cannot establish their KV payload transfer | **Not established** by the current reference adapters | An evidence adapter and controlled validation for the intended stack and path |
 
 **The gates are stack-agnostic; the reference scripts are not.** Any adapter must provide:
 

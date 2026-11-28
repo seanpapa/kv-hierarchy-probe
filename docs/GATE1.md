@@ -4,10 +4,16 @@ Start here after [first-visit](FIRST-VISIT.md): **read an example → prepare yo
 Gate 1 asks whether the intended tier served the KV data, with correct output and external byte
 evidence. Repeat that validation at every measured point in Gates 2–5.
 
-The reference path below uses `g5_controlled_kv_experiment.sh one` to collect matched context runs
+The local NVMe reference path below uses `g5_controlled_kv_experiment.sh one` to collect matched
+context runs
 for Gates 1 and 2. There is no additional `g1_*` benchmark: `ingest` derives expected bytes from the
 recorded configuration and normalizes observations; `report` judges them. The optional
 `kvprobe gate1` commands are a separate [NVMe observation route](#optional-nvme-walkthrough).
+
+For the NFS/RDMA Gate 1-only adapter, use the [reference path](NFS-RDMA-EXPERIMENTAL.md) to ingest
+qualified retained originals and report the verdict. It is available on main and unreleased;
+live producer setup guidance remains follow-up work. It uses NFS-service evidence rather than
+the local block-device counter used in this walkthrough.
 
 ## 1. Read a verdict without a GPU
 

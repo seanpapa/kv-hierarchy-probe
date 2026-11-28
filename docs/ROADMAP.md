@@ -3,10 +3,10 @@
 > Reviewed: 2026-11-28. This page states what the probe does not verify yet and what is planned.
 > It is not a schedule. Items move or close through pull requests that update this page.
 
-**Verified today:** local NVMe only, on the paths listed in
-[Scope — what is verified today](../README.md#scope--what-is-verified-today). The sections below separate
-known limitations in those paths from work beyond the verified scope. Open questions and planned work
-do not extend that scope.
+**Verified today:** the established five-gate operational workflow uses local NVMe. A controlled,
+serialized NFS/RDMA reference request has also passed Gate 1; its adapter is available on main,
+unreleased, and assesses Gate 1 only. See [Scope — what is verified today](../README.md#scope--what-is-verified-today).
+The sections below separate known limits from follow-up work. Planned work does not extend that scope.
 
 A valid measurement that shows a tier is not worth it is a useful result. Reports from other hardware
 and stacks are welcome as GitHub issues, including results that do not pass; please leave out host
@@ -14,17 +14,16 @@ names and internal paths.
 
 ## Next
 
-**NFS/RDMA Gate 1 evidence (in development).** Experimental raw capture/replay, process/path
-binding, reference-originals ingest and Gate 1-only report assessment are present on this branch.
-Qualified retained serving originals can establish Gate 1 for their measured requests. Live producer
-setup guidance and integrated client-cache-negative coverage remain follow-up work. The established
-operational reference remains local NVMe. See [experimental APIs and remaining work](NFS-RDMA-EXPERIMENTAL.md).
+**NFS/RDMA follow-up: producer guidance and live negative coverage.** The reference-originals
+adapter and Gate 1 assessment are implemented on main (unreleased; see [completed work](#recently-completed-on-main)).
+The remaining work is repeatable live producer setup guidance and integrated client-cache-negative
+coverage. See [reference APIs and remaining work](NFS-RDMA-EXPERIMENTAL.md).
 
-- **Closes when:** qualified serving originals produce the expected Gate 1 verdicts through the
-  normalized adapter and report, client-cache hits cannot masquerade as remote service, and local
-  NVMe regression results remain intact. Gate 1-only evidence keeps the overall report `PARTIAL`.
-  A new positive run is required for missing evidence or changed collection/measurement conditions,
-  rather than solely because an offline normalization CLI was added.
+- **Closes when:** the producer setup and collection procedure are documented, and a controlled live
+  client-cache retrieval records zero remote payload and is distinguished from NFS service by the
+  integrated adapter/report. Synthetic negative cases already test the policy. This follow-up is
+  separate from recognizing the qualified reference request's G1 PASS. A new positive run is needed
+  for missing evidence or changed collection/measurement conditions.
 
 ### Follow-up: TP=1 on a multi-GPU host
 
@@ -58,7 +57,7 @@ in a release yet. Details are in the [CHANGELOG](../CHANGELOG.md).
 | Preparing a host | The runbook says what to install and check for each arm, which gates a host with one GPU and no GDS produces and how to size the fillers; its image check now loads torch first ([scripts/README](../scripts/README.md#preparing-a-host)) | #29 | `0.2.1` |
 | Gate 1 walkthrough | [GATE1](GATE1.md) goes from three synthetic verdicts through preparation, collection, `ingest` and `report`, and explains why a Gate 1/2-only run is `PARTIAL` | #30 | `0.2.1` |
 | Licence metadata | The package declares `Apache-2.0` as an SPDX expression, which clears setuptools' deprecation warning; the shipped LICENSE and NOTICE are unchanged | #31 | `0.2.1` |
-| NFS/RDMA Gate 1 (experimental) | An explicit `ingest --adapter nfs-reference` normalizes retained NFS/RDMA reference originals, and the report judges Gate 1 only, so the overall result stays `PARTIAL`. Legacy evidence that declares an NFS service scope is refused instead of judged as block-device evidence. General NFS support remains a [Next](#next) item ([NFS-RDMA-EXPERIMENTAL](NFS-RDMA-EXPERIMENTAL.md)) | #33 | `unreleased` |
+| NFS/RDMA Gate 1 reference path | An explicit `ingest --adapter nfs-reference` normalizes qualified retained originals. A controlled, serialized reference request passed Gate 1. The report assesses G1 only: a G1 PASS keeps the overall result `PARTIAL`; adverse measurements retain their FAIL, UNPROVEN or INVALID verdicts. Legacy NFS scope mixing is refused. Producer guidance and live negative coverage remain [follow-up work](#next) ([reference path](NFS-RDMA-EXPERIMENTAL.md)) | #33 | `unreleased` |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit
@@ -113,7 +112,8 @@ unified-memory hosts, a logical CPU cache is not necessarily separate physical m
 ### REMOTE block attachment: NVMe-oF hardware check
 
 An NVMe-oF namespace mounted on the GPU server is a local block device, so in principle the local-NVMe
-counters apply. It is **not hardware-verified**; every Gate 1 pass so far is single-path local NVMe.
+counters apply. NVMe-oF is **not hardware-verified**; the verified block-device paths use
+single-path local NVMe. The separate NFS-service reference does not qualify a block attachment.
 
 - Native GDS over the fabric depends on platform, filesystem and transport; the POSIX arm does not need it.
 - With fabric multipath, it is unverified on which device number cgroup `io.stat` records the bytes.
@@ -135,13 +135,12 @@ validation requires additional correlation and path evidence
 - **Needed:** an evidence source that counts per-request bytes at the client, the connection or the
   store, with an identity that ties them to the request. NIC totals include other traffic and protocol
   overhead; logical KV bytes, encoded payload and wire bytes can differ and need their own expected values.
-- **In development:** the NFS/RDMA [raw APIs and draft scope](NFS-RDMA-EXPERIMENTAL.md) address
-  mount-scoped observations with explicit reference ingest and G1-only assessment. Qualified
-  retained requests and broader live workflow qualification are separate scopes; object storage
-  and network KV stores still need their own evidence providers.
-- **Closes when:** an adapter turns such evidence into the normalized format, with synthetic tests for
-  complete, missing and partial transfers, and one controlled hardware run shows the attachment's limits.
-  Keep the result scoped to the tier and path actually measured.
+- **Available on main, unreleased:** the NFS/RDMA [reference adapter](NFS-RDMA-EXPERIMENTAL.md)
+  provides mount-scoped ingest and G1-only assessment, including a qualified controlled reference
+  request. Broader NFS stacks/layouts, object storage and network KV stores need their own qualification.
+- **Closes for each additional path when:** its adapter normalizes scoped evidence, synthetic cases
+  cover complete/missing/partial transfers, and a controlled run establishes the attachment's limits.
+  The NFS producer-guidance and live-negative follow-up is listed under [Next](#next).
 
 ## Keeping this page current
 

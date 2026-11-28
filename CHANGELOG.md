@@ -6,8 +6,9 @@ its commit history. Data-contract versions are listed in [docs/VERSIONING.md](do
 
 ## Unreleased (0.3.0.dev0)
 
-NFS/RDMA work is experimental. See the [adapter, policy and remaining acceptance](docs/NFS-RDMA-EXPERIMENTAL.md).
-The reference path now produces G1-only assessments; generalized verified support is not declared.
+The NFS/RDMA reference path is implemented on main and unreleased. A controlled, serialized
+reference request passed Gate 1. See the [adapter, policy and remaining work](docs/NFS-RDMA-EXPERIMENTAL.md).
+Generalized verified support is not declared; NFS evidence currently supplies G1-only assessments.
 
 ### Changed
 
@@ -17,6 +18,8 @@ The reference path now produces G1-only assessments; generalized verified suppor
 
 ### Fixed
 
+- Scope and roadmap wording now distinguish the implemented NFS/RDMA Gate 1 reference path from
+  producer guidance/live negative follow-ups and the existing local NVMe five-gate workflow.
 - NFS reference ingest now carries request/quiet callback errors into an INVALID capture
   instead of allowing matching output/bytes to pass despite a failed measurement phase.
 - Optional shutdown/cleanup diagnostic JSON no longer vetoes valid request evidence when its

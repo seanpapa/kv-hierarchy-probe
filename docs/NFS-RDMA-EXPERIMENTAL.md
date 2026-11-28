@@ -1,10 +1,13 @@
-# Experimental NFS/RDMA evidence APIs
+<a name="experimental-nfsrdma-evidence-apis"></a>
 
-This development branch adds raw capture/replay, an explicit reference-originals ingest adapter,
-and NFS-service Gate 1 assessment. The path is experimental and limited to a trusted, controlled
-tiny BF16 TP=1 reference producer and one serialized chunk retrieval. Generalized NFS support and
-live positive/negative integration qualification are not declared complete. Existing CLI defaults and
-the operational local NVMe workflow are unchanged.
+# NFS/RDMA Gate 1 reference path
+
+Raw capture/replay, explicit reference-originals ingest and NFS-service Gate 1 assessment are
+available on main and unreleased. A controlled, serialized reference request has passed Gate 1
+using qualified retained NFS/RDMA originals. The path is limited to a trusted tiny BF16 TP=1
+reference producer and one chunk retrieval. The existing five-gate operational workflow uses local
+NVMe. Live producer setup guidance, integrated client-cache-negative coverage and qualification of
+other stacks/layouts remain follow-up work. Existing CLI defaults are unchanged.
 
 ## Why a separate scope is needed
 
@@ -46,7 +49,9 @@ launch bounded synthetic POSIX children, including deliberate signals/timeouts; 
 serving experiments. Captured proc files, source inventories and raw bundles can contain local
 paths or process details and belong outside the public source tree.
 
-## Draft configuration contract
+<a name="draft-configuration-contract"></a>
+
+## Unreleased configuration contract
 
 The NFS provider is `nfs_mountstats`. Its arm has a `tier_identity` with opaque labels:
 
@@ -73,7 +78,7 @@ fingerprint = fingerprint_configuration(parameters, evidence_version="0.4.0")
 
 All identity fields participate in the fingerprint. `io_mode` may be `direct` or `buffered`;
 declaring buffered mode does not prove a remote read. Transport is restricted to RDMA in this
-draft. `target_device_filtered` stays false for an NFS service. Existing 0.3.x configuration
+contract. `target_device_filtered` stays false for an NFS service. Existing 0.3.x configuration
 fingerprints remain unchanged; placing NFS scope declarations in legacy evidence is rejected.
 `report` judges the explicit NFS Gate 1-only evidence contract; a scope declaration alone
 cannot pass. Required request/source/file/namespace/counter/correctness roles must be present.
@@ -132,7 +137,6 @@ wrapper exit is never used as a qualification shortcut.
 
 ## Remaining work and when a new run is needed
 
-- Review the integration regression and Linux CLI replay before merging the experimental path.
 - Finish live producer setup guidance and optional wrapper integration for repeatable collection.
 - Live client-cache-negative coverage and broader stack/layout qualification remain follow-up work;
   synthetic negative tests establish policy behavior, not hardware behavior.
@@ -149,7 +153,8 @@ agreement and sufficient control of competing explanations. This reference adapt
 recognition, physical-original comparisons and namespace inventory implement that contract for
 one producer; they are not universal setup requirements for every tier or adapter.
 
-A Gate 1-only result leaves Gates 2–5 unmeasured: the overall report remains `PARTIAL` with
-performance claims suppressed. The normalized NFS policy has no stack-exit/shutdown condition;
+A Gate 1-only PASS leaves Gates 2–5 unmeasured: the overall report is `PARTIAL`. Adverse
+measurements retain their FAIL, UNPROVEN or INVALID verdicts. Performance claims remain suppressed
+throughout this G1-only path. The normalized NFS policy has no stack-exit/shutdown condition;
 raw stack-health diagnostics remain separately available. Source helpers, unknown layouts,
 concurrency, multiple chunks and other serving stacks need their own qualification.
