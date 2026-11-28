@@ -41,24 +41,24 @@ request evidence.
 
 ## Recently completed on main
 
-The rows merged in #28–#31 ship in `0.2.1`, the rows before them in `0.2.0`; no completed change is
-unreleased. See [CHANGELOG — 0.2.1](../CHANGELOG.md#021--2026-11-26) and
-[CHANGELOG — 0.2.0](../CHANGELOG.md#020--2026-11-19) for details.
+**Release** names the first release that ships each row; `unreleased` means merged on main but not
+in a release yet. Details are in the [CHANGELOG](../CHANGELOG.md).
 
-| Change | What improved | Merged in |
-|---|---|---|
-| Gate 1 next steps | A `FAIL` or `UNPROVEN` report names each finding, why it matters and what to check next ([GATE1](GATE1.md#next-steps-in-the-report)) | #18 |
-| Gate 4 fallback kinds | Complete per-request records let the report split fallbacks beyond capacity by earlier observed store writes of the same entry and suggest where to look first ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #19 |
-| Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | #19, #20 |
-| GDS staging-pool cause investigation | Source review and a controlled CPU-cache-on/off comparison support the explanation for pool space held after a completed load ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). This closed the cause-finding item only; the pass-condition review is the next row | #22 |
-| Gate 3 and Gate 4 pass-condition review | Retaining every attempt and the classification counts is enough to prevent a false `PASS`; evidence without them was not covered. A Gate 3 block of successful samples only and a Gate 4 overflow with target-tier service but no counts are now `UNPROVEN`; overflow with no service remains `FAIL`, and evidence with every attempt and the counts is judged as before ([METHOD](METHOD.md#gate-3--admission-cost)) | #23 |
-| Staging-pool cause in the Gate 4 text | Fallbacks beyond capacity now carry a note that a held staging pool can cause them, so the counts alone do not show a device fault, unless every fallback points to the store path; METHOD states that the same cause can raise Gate 3's reuses needed. No verdict changed ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #24 |
-| `geometry` layout refusal | Explicit `layer_types` must declare full attention for every layer; mixed, uniform non-full-attention and malformed declarations and known hybrid markers are refused instead of answered with the standard formula ([GEOMETRY](GEOMETRY.md#fail-closed-boundaries)) | #25 |
-| `tier-check` Docker access | T13 checks that this user reaches a Docker daemon on this host with the NVIDIA runtime registered; a host without Docker no longer reads ready ([TIER-CHECK](TIER-CHECK.md#4-the-checks)) | #26 |
-| Gate 5 without GDS | The controlled launcher's `concurrency-posix` sweep runs the POSIX arm alone, so a host without `nvidia-fs` can produce Gate 5; `preflight posix` and `preflight recompute` skip `gdscheck` ([runbook step 5](../scripts/README.md#minimal-runbook--all-five-gates-one-configuration)) | #28 |
-| Preparing a host | The runbook says what to install and check for each arm, which gates a host with one GPU and no GDS produces and how to size the fillers; its image check now loads torch first ([scripts/README](../scripts/README.md#preparing-a-host)) | #29 |
-| Gate 1 walkthrough | [GATE1](GATE1.md) goes from three synthetic verdicts through preparation, collection, `ingest` and `report`, and explains why a Gate 1/2-only run is `PARTIAL` | #30 |
-| Licence metadata | The package declares `Apache-2.0` as an SPDX expression, which clears setuptools' deprecation warning; the shipped LICENSE and NOTICE are unchanged | #31 |
+| Change | What improved | Merged in | Release |
+|---|---|---|---|
+| Gate 1 next steps | A `FAIL` or `UNPROVEN` report names each finding, why it matters and what to check next ([GATE1](GATE1.md#next-steps-in-the-report)) | #18 | `0.2.0` |
+| Gate 4 fallback kinds | Complete per-request records let the report split fallbacks beyond capacity by earlier observed store writes of the same entry and suggest where to look first ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #19 | `0.2.0` |
+| Evidence-version field checks | The reporter refuses version-specific fields in documents whose declared version does not define them, covering Gate 4's split and Gate 5's input size ([EVIDENCE](EVIDENCE.md#versioned-contracts)) | #19, #20 | `0.2.0` |
+| GDS staging-pool cause investigation | Source review and a controlled CPU-cache-on/off comparison support the explanation for pool space held after a completed load ([FAILURE-CATALOG §13](FAILURE-CATALOG.md#staging-buffer-full)). This closed the cause-finding item only; the pass-condition review is the next row | #22 | `0.2.0` |
+| Gate 3 and Gate 4 pass-condition review | Retaining every attempt and the classification counts is enough to prevent a false `PASS`; evidence without them was not covered. A Gate 3 block of successful samples only and a Gate 4 overflow with target-tier service but no counts are now `UNPROVEN`; overflow with no service remains `FAIL`, and evidence with every attempt and the counts is judged as before ([METHOD](METHOD.md#gate-3--admission-cost)) | #23 | `0.2.0` |
+| Staging-pool cause in the Gate 4 text | Fallbacks beyond capacity now carry a note that a held staging pool can cause them, so the counts alone do not show a device fault, unless every fallback points to the store path; METHOD states that the same cause can raise Gate 3's reuses needed. No verdict changed ([METHOD](METHOD.md#gate-4--capacity-crossover)) | #24 | `0.2.0` |
+| `geometry` layout refusal | Explicit `layer_types` must declare full attention for every layer; mixed, uniform non-full-attention and malformed declarations and known hybrid markers are refused instead of answered with the standard formula ([GEOMETRY](GEOMETRY.md#fail-closed-boundaries)) | #25 | `0.2.0` |
+| `tier-check` Docker access | T13 checks that this user reaches a Docker daemon on this host with the NVIDIA runtime registered; a host without Docker no longer reads ready ([TIER-CHECK](TIER-CHECK.md#4-the-checks)) | #26 | `0.2.0` |
+| Gate 5 without GDS | The controlled launcher's `concurrency-posix` sweep runs the POSIX arm alone, so a host without `nvidia-fs` can produce Gate 5; `preflight posix` and `preflight recompute` skip `gdscheck` ([runbook step 5](../scripts/README.md#minimal-runbook--all-five-gates-one-configuration)) | #28 | `0.2.1` |
+| Preparing a host | The runbook says what to install and check for each arm, which gates a host with one GPU and no GDS produces and how to size the fillers; its image check now loads torch first ([scripts/README](../scripts/README.md#preparing-a-host)) | #29 | `0.2.1` |
+| Gate 1 walkthrough | [GATE1](GATE1.md) goes from three synthetic verdicts through preparation, collection, `ingest` and `report`, and explains why a Gate 1/2-only run is `PARTIAL` | #30 | `0.2.1` |
+| Licence metadata | The package declares `Apache-2.0` as an SPDX expression, which clears setuptools' deprecation warning; the shipped LICENSE and NOTICE are unchanged | #31 | `0.2.1` |
+| NFS/RDMA Gate 1 (experimental) | An explicit `ingest --adapter nfs-reference` normalizes retained NFS/RDMA reference originals, and the report judges Gate 1 only, so the overall result stays `PARTIAL`. Legacy evidence that declares an NFS service scope is refused instead of judged as block-device evidence. General NFS support remains a [Next](#next) item ([NFS-RDMA-EXPERIMENTAL](NFS-RDMA-EXPERIMENTAL.md)) | #33 | `unreleased` |
 
 The Gate 4 write counter is host-wide; an observed write does not place the entry on the target
 device. A Gate 3 `fallback` remains unsplit, as a documented limit
