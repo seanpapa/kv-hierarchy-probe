@@ -6,6 +6,9 @@ import hashlib
 import json
 from typing import Any
 
+# Local
+from .tier_scope import ScopeError, validate_target_scope
+
 
 #: Longest accepted runtime identity. These fields exist to distinguish one
 #: build or device from another, not to carry a description, and the
@@ -29,9 +32,7 @@ def _text(parent: dict[str, Any], name: str) -> str:
     """Return a required non-empty string."""
     value = parent.get(name)
     if not isinstance(value, str) or not value.strip():
-        raise ConfigurationError(
-            f"configuration {name} must be a non-empty string"
-        )
+        raise ConfigurationError(f"configuration {name} must be a non-empty string")
     return value
 
 
@@ -65,21 +66,13 @@ def _identity(parent: dict[str, Any], name: str) -> str:
     return value
 
 
-def _integer(
-    parent: dict[str, Any], name: str, *, positive: bool = False
-) -> int:
+def _integer(parent: dict[str, Any], name: str, *, positive: bool = False) -> int:
     """Return a required non-negative or positive integer."""
     value = parent.get(name)
     minimum = 1 if positive else 0
-    if (
-        not isinstance(value, int)
-        or isinstance(value, bool)
-        or value < minimum
-    ):
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
         qualifier = "positive" if positive else "non-negative"
-        raise ConfigurationError(
-            f"configuration {name} must be a {qualifier} integer"
-        )
+        raise ConfigurationError(f"configuration {name} must be a {qualifier} integer")
     return value
 
 
@@ -124,11 +117,14 @@ def _exact_keys(
         )
 
 
-def validate_configuration(parameters: Any) -> dict[str, Any]:
+def validate_configuration(
+    parameters: Any, *, evidence_version: str = "0.3.2"
+) -> dict[str, Any]:
     """Validate the fields that define one comparable experiment.
 
     Args:
         parameters: Parsed configuration parameter object.
+        evidence_version: Explicit evidence contract; legacy is the default.
 
     Returns:
         The validated object without modification.
@@ -137,6 +133,13 @@ def validate_configuration(parameters: Any) -> dict[str, Any]:
         ConfigurationError: If a required identity, capacity, schedule, or arm
             field is missing or malformed.
     """
+    if not isinstance(evidence_version, str) or evidence_version not in {
+        "0.3.0",
+        "0.3.1",
+        "0.3.2",
+        "0.4.0",
+    }:
+        raise ConfigurationError(f"unsupported evidence version: {evidence_version}")
     if not isinstance(parameters, dict):
         raise ConfigurationError("configuration parameters must be an object")
     _exact_keys(
@@ -163,7 +166,9 @@ def validate_configuration(parameters: Any) -> dict[str, Any]:
 
     cache = _object(parameters, "cache")
     _exact_keys(cache, {"upper_tier_capacity_bytes"}, "cache")
-    _integer(cache, "upper_tier_capacity_bytes", positive=True)
+    # Explicit draft 0.4.0 can describe a controlled run with upper-tier reuse
+    # disabled. Legacy 0.3.x keeps its existing strictly-positive contract.
+    _integer(cache, "upper_tier_capacity_bytes", positive=evidence_version != "0.4.0")
 
     runtime = _object(parameters, "runtime")
     _exact_keys(
@@ -225,6 +230,9 @@ def validate_configuration(parameters: Any) -> dict[str, Any]:
                 "eviction_parameters",
             },
             f"arm {index}",
+            optional=frozenset({"tier_identity"})
+            if evidence_version == "0.4.0"
+            else frozenset(),
         )
         name = _text(arm, "name")
         if name in arm_names:
@@ -238,7 +246,16 @@ def validate_configuration(parameters: Any) -> dict[str, Any]:
             raise ConfigurationError(
                 f"configuration arm {index} tier_path must be null or non-empty"
             )
-        _text(arm, "attribution_provider")
+        provider = _text(arm, "attribution_provider")
+        if provider == "nfs_mountstats":
+            if evidence_version != "0.4.0":
+                raise ConfigurationError("nfs_mountstats requires evidence 0.4.0")
+            try:
+                validate_target_scope(arm.get("tier_identity"))
+            except ScopeError as exc:
+                raise ConfigurationError(str(exc)) from exc
+        elif "tier_identity" in arm:
+            raise ConfigurationError("tier_identity is reserved for nfs_mountstats")
         _integer(arm, "staging_capacity_bytes")
         _text(arm, "eviction_policy")
         if not isinstance(arm.get("eviction_parameters"), dict):
@@ -248,11 +265,14 @@ def validate_configuration(parameters: Any) -> dict[str, Any]:
     return parameters
 
 
-def fingerprint_configuration(parameters: Any) -> str:
+def fingerprint_configuration(
+    parameters: Any, *, evidence_version: str = "0.3.2"
+) -> str:
     """Return the SHA-256 fingerprint of canonical configuration JSON.
 
     Args:
         parameters: Parsed configuration parameter object.
+        evidence_version: Explicit evidence contract; legacy is the default.
 
     Returns:
         Lowercase SHA-256 digest over UTF-8 canonical JSON with sorted keys and
@@ -262,7 +282,7 @@ def fingerprint_configuration(parameters: Any) -> str:
         ConfigurationError: If the configuration is malformed or contains a
             non-finite number that canonical JSON must reject.
     """
-    validated = validate_configuration(parameters)
+    validated = validate_configuration(parameters, evidence_version=evidence_version)
     try:
         canonical = json.dumps(
             validated,
@@ -272,17 +292,18 @@ def fingerprint_configuration(parameters: Any) -> str:
             sort_keys=True,
         ).encode("utf-8")
     except (TypeError, ValueError) as exc:
-        raise ConfigurationError(
-            f"configuration is not canonical JSON: {exc}"
-        ) from exc
+        raise ConfigurationError(f"configuration is not canonical JSON: {exc}") from exc
     return hashlib.sha256(canonical).hexdigest()
 
 
-def validate_registry(entries: Any) -> dict[str, str]:
+def validate_registry(
+    entries: Any, *, evidence_version: str = "0.3.2"
+) -> dict[str, str]:
     """Validate a configuration registry and return ID-to-fingerprint mapping.
 
     Args:
         entries: Parsed list of configuration registry entries.
+        evidence_version: Explicit evidence contract; legacy is the default.
 
     Returns:
         Mapping from unique configuration IDs to verified fingerprints.
@@ -300,11 +321,11 @@ def validate_registry(entries: Any) -> dict[str, str]:
         _exact_keys(entry, {"id", "fingerprint", "parameters"}, f"entry {index}")
         configuration_id = _text(entry, "id")
         if configuration_id in registry:
-            raise ConfigurationError(
-                f"duplicate configuration id: {configuration_id}"
-            )
+            raise ConfigurationError(f"duplicate configuration id: {configuration_id}")
         supplied = _text(entry, "fingerprint")
-        expected = fingerprint_configuration(entry.get("parameters"))
+        expected = fingerprint_configuration(
+            entry.get("parameters"), evidence_version=evidence_version
+        )
         if supplied != expected:
             raise ConfigurationError(
                 f"configuration {configuration_id} fingerprint mismatch: "

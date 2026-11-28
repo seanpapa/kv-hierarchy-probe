@@ -170,7 +170,7 @@ class Normalization(unittest.TestCase):
 
     def test_output_is_assessable(self) -> None:
         assessment = assess_evidence(_build([_row()]))
-        self.assertEqual(assessment["assessment_version"], "0.7.1")
+        self.assertEqual(assessment["assessment_version"], "0.8.0")
         attribution = next(g for g in assessment["gates"] if g["id"] == 1)
         self.assertEqual(attribution["status"], "UNPROVEN")
         self.assertIsNone(assessment.get("performance"))

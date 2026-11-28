@@ -4,6 +4,82 @@ The public history of this repository starts at its first release. Development b
 in a private repository; the first entry summarizes what that work produced rather than reproducing
 its commit history. Data-contract versions are listed in [docs/VERSIONING.md](docs/VERSIONING.md).
 
+## Unreleased (0.3.0.dev0)
+
+NFS/RDMA work is experimental. See the [adapter, policy and remaining acceptance](docs/NFS-RDMA-EXPERIMENTAL.md).
+The reference path now produces G1-only assessments; generalized verified support is not declared.
+
+### Changed
+
+- Legacy evidence with NFS service-scope declarations is now refused instead of silently judged as
+  block-device evidence. This is an incompatible input boundary, targeting the next minor release.
+  Schema-valid local examples keep their results. General NFS serving-stack support is not declared.
+
+### Fixed
+
+- NFS reference ingest now carries request/quiet callback errors into an INVALID capture
+  instead of allowing matching output/bytes to pass despite a failed measurement phase.
+- Optional shutdown/cleanup diagnostic JSON no longer vetoes valid request evidence when its
+  contents are unreadable. Its raw bytes/hashes remain retained; required measurement JSON,
+  artifact containment and integrity checks stay strict.
+- Legacy NFS replay now confines the resolved `artifacts/` directory to the original bundle root,
+  rejecting outside directory symlinks while retaining valid internal aliases.
+- Serving-candidate replay adds quiet-phase activity, READ RPC retry/timeout/error and request
+  I/O-mode conflict diagnostics. Interphase activity now includes all retained I/O/RPC deltas.
+  Raw counters remain intact; diagnostics do not produce a serving verdict or authorize claims.
+
+### Measurement boundary correction
+
+- Gate 1 request evidence is independent of serving-stack teardown health. Raw client replay now
+  exposes a versioned `measurement_evidence` view and separate `stack_health`, accepts valid
+  pre-teardown checkpoints without shutdown receipts, and permits a finished baseline response
+  even if the stack later fails. Stack warnings never replace correctness/byte/scope/integrity
+  checks or become a Gate 1 veto by themselves. Incomplete/corrupt measurement evidence remains
+  unavailable/refused. Existing normalized report rules and CLI defaults are unchanged.
+
+### Added
+
+- Explicit `ingest --adapter nfs-reference` replays retained source/file/buffer/namespace and
+  client/counter originals into the separate NFS evidence contract. The report distinguishes
+  missing, contradicted and invalid measurements. G1-only PASS remains overall PARTIAL and
+  suppresses performance claims. Default ingest and valid legacy local verdicts are unchanged.
+  The NFS input needs a trusted reference producer. Qualified retained requests do not require a
+  fresh positive run merely to connect an offline CLI; broader live workflow qualification remains
+  separate from their verdicts.
+- `fingerprint --evidence-version` selects an explicit configuration contract; the default is unchanged.
+- Buffered NFS reference receipts require actual runtime/configuration mode agreement, so a
+  client-cache-negative observation can be represented without pretending a direct read happened.
+
+- Experimental pre-teardown workload checkpoints and a parent-owned POSIX process supervisor
+  retain real exit/signal/timeout outcomes and original hashes after a child aborts. Replay separates
+  workload consistency from cleanup/completion and refuses unsafe artifact seals. No process
+  outcome alone grants or vetoes serving verification. Complete legacy client receipts remain readable;
+  old aborted captures are not retroactively sealed or upgraded. The raw observation reader remains separate from normalized assessment.
+
+- Experimental tiny reference-client replay cross-checks original input/output, an independent
+  recompute baseline, model/package/source digests, process lifetime and four KV byte originals.
+  NFS candidates also join callback timing/bytes and bracketing process/path receipts. These are
+  consistency observations; source/runtime/isolation originals are required by the explicit reference adapter. Explicit draft 0.4.0 permits zero upper-tier reusable capacity; legacy 0.3.x does not.
+
+- Experimental read-only process/path binding captures PID/start-time, cmdline, namespace and
+  kernel-resolved FD mount/device metadata. Replay distinguishes a shared NFS counter filesystem,
+  a mismatch, unavailable evidence and unstable capture. Namespace inequality and lexical path
+  prefixes do not decide the connection. Actual payload access and serving verification remain
+  unestablished; existing CLI defaults remain unchanged.
+
+- Experimental controlled-callback capture retains prior request/configuration/baseline bytes,
+  before/after NFS snapshots and adjacent idle controls. Replay independently derives geometry,
+  output comparisons and phase/gap deltas, while withholding serving verification pending client,
+  baseline and isolation qualification. The explicit reference adapter performs a separate normalized assessment.
+
+- Draft evidence 0.4.0 scope schema and explicit version-aware configuration fingerprint/binding
+  APIs distinguish NFS service/export/client identity from a device filter. The explicit reference adapter and report branch use the new contract; legacy CLI defaults remain unchanged.
+
+- Experimental raw NFS/RDMA capture and replay APIs retain per-snapshot namespace and clock-domain
+  metadata, verify raw artifact hashes and recompute mount-scoped payload counters. Legacy file-I/O
+  diagnostics retain their missing provenance. Replay is observation only: no serving-tier verdict,
+  performance claim or hardware-verified NFS support is added by raw replay alone.
+
 ## 0.2.1 — 2026-11-26
 
 A compatible release under the pre-1.0 rule: no data contract, verdict rule or report output

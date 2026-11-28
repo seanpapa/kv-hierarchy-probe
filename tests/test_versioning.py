@@ -12,7 +12,9 @@ from kvprobe import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "docs" / "VERSIONING.md"
-SOURCES = sorted((ROOT / "kvprobe").glob("*.py")) + sorted((ROOT / "scripts").glob("*.py"))
+SOURCES = sorted((ROOT / "kvprobe").glob("*.py")) + sorted(
+    (ROOT / "scripts").glob("*.py")
+)
 VERSION_LITERAL = re.compile(r'"([0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z.]+)?)"')
 WRITTEN_FIELD = re.compile(r'"([a-z_]+_version)"\s*:')
 RELEASE_HEADING = re.compile(
@@ -53,11 +55,12 @@ def written_by_code() -> dict[str, set[str]]:
             match = WRITTEN_FIELD.search(line)
             if match is None:
                 continue
-            values = set(VERSION_LITERAL.findall(line[match.end():]))
+            values = set(VERSION_LITERAL.findall(line[match.end() :]))
             if values:
                 found.setdefault(match.group(1), set()).update(values)
     for module, constant, field in (
         ("ingest.py", "ADAPTER_VERSION", "normalized_by.version"),
+        ("nfs_ingest.py", "NFS_ADAPTER_VERSION", "normalized_by.version"),
         ("report.py", "ASSESSMENT_VERSION", "assessment_version"),
     ):
         match = re.search(
@@ -91,16 +94,33 @@ class VersionRegistryTests(unittest.TestCase):
         self.assertEqual(written_by_code()["version"], {__version__})
 
     def test_package_version_is_the_latest_released_entry(self) -> None:
-        """The changelog and the version history name the package version as released."""
+        """Stable packages name a release; dev packages name an unreleased target."""
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         released = RELEASE_HEADING.findall(changelog)
         self.assertTrue(released, "CHANGELOG.md has no released version heading")
-        self.assertEqual(released[0], __version__, "newest CHANGELOG release is not the package")
+        development = re.fullmatch(r"([0-9]+\.[0-9]+\.[0-9]+)\.dev[0-9]+", __version__)
+        if development:
+            self.assertIn(f"## Unreleased ({__version__})", changelog)
+            self.assertNotIn(development[1], released)
+            self.assertGreater(
+                tuple(map(int, development[1].split("."))),
+                tuple(map(int, released[0].split("."))),
+            )
+        else:
+            self.assertEqual(
+                released[0], __version__, "newest CHANGELOG release is not the package"
+            )
         history = REGISTRY.read_text(encoding="utf-8").split("\n## History\n", 1)
         self.assertEqual(len(history), 2, "docs/VERSIONING.md has no History section")
         listed = RELEASE_HEADING.findall(history[1])
         self.assertTrue(listed, "the VERSIONING history lists no release")
-        self.assertEqual(listed[0], __version__, "newest VERSIONING release is not the package")
+        if development:
+            self.assertIn(f"### Unreleased ({__version__})", history[1])
+            self.assertEqual(listed, released)
+        else:
+            self.assertEqual(
+                listed[0], __version__, "newest VERSIONING release is not the package"
+            )
 
     def test_baseline_format_is_distinct_from_evidence_schema(self) -> None:
         """Summary files identify their own format without an evidence key."""

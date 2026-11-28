@@ -9,6 +9,9 @@ from typing import Any
 
 # Local
 from .configuration import ConfigurationError, validate_registry
+from .tier_scope import ScopeError, reject_legacy_scope
+from .scope_contract import validate_scope_bindings
+from .nfs_policy import NfsPolicyError, judge_request
 
 
 class EvidenceError(ValueError):
@@ -105,7 +108,9 @@ _PASSING_CONFIDENCE = {"direct", "corroborating"}
 #: judged as before. 0.7.1 adds the staging-pool cause to the Gate 4 text that
 #: describes fallbacks beyond capacity, unless every fallback points to the
 #: store path. Verdicts are unchanged.
-ASSESSMENT_VERSION = "0.7.1"
+#: Next incompatible boundary: new NFS scope declarations under legacy versions
+#: are refused instead of being silently assessed as block-device evidence.
+ASSESSMENT_VERSION = "0.8.0"
 _GATE_STATUSES = {"PASS", "FAIL", "UNPROVEN", "SKIP_UNSUPPORTED", "INVALID"}
 _FATAL_SCOPES = {"measurement"}
 
@@ -678,6 +683,19 @@ def gate1_next_steps(
     gate1 = assessment["gates"][0]
     if gate1["status"] not in {"FAIL", "UNPROVEN"}:
         return ()
+    if payload.get("schema_version") == "0.4.0":
+        return (Gate1NextStep(
+            title="NFS service evidence", kind="Observed or unavailable",
+            finding=gate1["reason"],
+            why=("NFS payload needs request, file-layout and "
+                 "counter-scope evidence together."),
+            action_kind="Check",
+            action=("the request reason codes and retained source, file, "
+                    "namespace and counter originals."),
+            limit=("Mount counters do not prove server SSD reads "
+                   "or GPU-direct transport."),
+            see=("docs/NFS-RDMA-EXPERIMENTAL.md",),
+        ),)
     requests, tolerance = _gate1_section(payload)
     classified = [_gate1_request(request, tolerance) for request in requests]
     targets = [item for item in classified if item.target]
@@ -1730,6 +1748,145 @@ def _assess_v0_3(payload: dict[str, Any]) -> dict[str, Any]:
     return assessment
 
 
+def _assess_v0_4(payload: dict[str, Any]) -> dict[str, Any]:
+    """Assess the first NFS-service contract; Gates 2–5 remain unmeasured."""
+    required = {
+        "schema_version",
+        "run_id",
+        "provenance",
+        "validity",
+        "configurations",
+        "bindings",
+    }
+    if not required <= set(payload) or set(payload) - required - {
+        "evidence",
+        "description",
+    }:
+        raise EvidenceError("unexpected or missing evidence 0.4.0 fields")
+    run_id = _non_empty_text(payload, "run_id")
+    artifact_ids = _artifact_ids(payload)
+    try:
+        registry = validate_registry(
+            payload.get("configurations"), evidence_version="0.4.0"
+        )
+    except ConfigurationError as exc:
+        raise EvidenceError(str(exc)) from exc
+    fatal = _fatal_observations(payload, artifact_ids)
+    empty = {
+        "attribution_requests": [],
+        "break_even": None,
+        "admission": None,
+        "capacity": None,
+        "envelope_levels": [],
+    }
+    if fatal:
+        if payload["bindings"] != empty:
+            raise EvidenceError(
+                "fatal 0.4.0 evidence requires empty measurement bindings"
+            )
+        result = _invalid_assessment(run_id, fatal)
+        result["configurations"] = registry
+        return result
+    evidence = _object(payload, "evidence")
+    names = {"attribution", "break_even", "admission", "capacity", "envelope"}
+    if set(evidence) != names:
+        raise EvidenceError("evidence 0.4.0 must declare all five sections")
+    for name in names - {"attribution"}:
+        section = _object(evidence, name)
+        supported, _ = _availability(section, name)
+        if supported or set(section) != {"availability"}:
+            raise EvidenceError("evidence 0.4.0 checkpoint supports Gate 1 only")
+        availability = section["availability"]
+        if set(availability) != {"status", "reason_code", "detail"}:
+            raise EvidenceError("unexpected unmeasured section fields")
+    used = _validate_bindings_v0_3(evidence, payload["bindings"], registry)
+    try:
+        validate_scope_bindings(payload)
+    except ScopeError as exc:
+        raise EvidenceError(str(exc)) from exc
+    section = evidence["attribution"]
+    if set(section) - {"availability", "requests", "tolerance_fraction"}:
+        raise EvidenceError("unexpected NFS attribution section fields")
+    tolerance = section.get("tolerance_fraction", 0)
+    if type(tolerance) not in (int, float) or tolerance != 0:
+        raise EvidenceError("NFS identity mapping uses zero byte tolerance")
+    supported, detail = _availability(section, "attribution")
+    kinds = {entry["id"]: entry["kind"] for entry in payload["provenance"]["artifacts"]}
+    bindings = {
+        x["request_id"]: x["configuration_id"]
+        for x in payload["bindings"]["attribution_requests"]
+    }
+    configurations = {x["id"]: x["parameters"] for x in payload["configurations"]}
+    outcomes = []
+    for request in section.get("requests", []):
+        configuration_id = bindings[request["id"]]
+        configuration = configurations[configuration_id]
+        try:
+            outcome = judge_request(request, kinds, registry[configuration_id])
+        except NfsPolicyError as exc:
+            raise EvidenceError(str(exc)) from exc
+        expected = request["expected_bytes"]
+        if (
+            expected is not None
+            and expected != configuration["kv_geometry"]["bytes_per_chunk"]
+        ):
+            raise EvidenceError("NFS reference request must bind one configured chunk")
+        if (
+            configuration["measurement"]["concurrency"] != [1]
+            and outcome["status"] != "INVALID"
+        ):
+            outcome = {
+                "status": "UNPROVEN",
+                "reason_code": "nonserial_configuration",
+                "reason": "NFS checkpoint covers serial requests only",
+            }
+        outcomes.append({"request_id": request["id"], **outcome})
+    if len(used) > 1:
+        result = _invalid_assessment(
+            run_id, [{"code": "configuration_mismatch", "scope": "measurement"}]
+        )
+        result["configurations"] = registry
+        return result
+    if not supported:
+        gate1 = _gate_v0_2(1, "SKIP_UNSUPPORTED", detail)
+    else:
+        order = {"INVALID": 0, "FAIL": 1, "UNPROVEN": 2, "PASS": 3}
+        worst = min(outcomes, key=lambda row: order[row["status"]])
+        count = sum(row["status"] == "PASS" for row in outcomes)
+        gate1 = _gate_v0_2(
+            1,
+            worst["status"],
+            f"{count}/{len(outcomes)} NFS requests verified; " + worst["reason"],
+        )
+    gates = [gate1] + [
+        _gate_v0_2(
+            index, "SKIP_UNSUPPORTED", "not measured by the NFS Gate 1 checkpoint"
+        )
+        for index in range(2, 6)
+    ]
+    overall = (
+        gate1["status"]
+        if gate1["status"] in {"INVALID", "FAIL", "UNPROVEN"}
+        else "PARTIAL"
+    )
+    result = {
+        "assessment_version": ASSESSMENT_VERSION,
+        "run_id": run_id,
+        "overall": overall,
+        "performance_claims": "suppressed",
+        "gates": gates,
+        "validated_envelope": {"max_concurrency": None},
+        "nfs_requests": outcomes,
+    }
+    if len(used) == 1:
+        configuration_id = next(iter(used))
+        result["configuration"] = {
+            "id": configuration_id,
+            "fingerprint": registry[configuration_id],
+        }
+    return result
+
+
 def assess_evidence(payload: Any) -> dict[str, Any]:
     """Apply the versioned five-gate contract to normalized evidence.
 
@@ -1752,9 +1909,15 @@ def assess_evidence(payload: Any) -> dict[str, Any]:
             "(see docs/EVIDENCE.md)"
         )
     if schema_version in {"0.3.0", "0.3.1", "0.3.2"}:
+        try:
+            reject_legacy_scope(payload)
+        except ScopeError as exc:
+            raise EvidenceError(str(exc)) from exc
         return _assess_v0_3(payload)
+    if schema_version == "0.4.0":
+        return _assess_v0_4(payload)
     raise EvidenceError(
-        "schema_version must be '0.3.0', '0.3.1' or '0.3.2'; "
+        "schema_version must be '0.3.0', '0.3.1', '0.3.2' or '0.4.0'; "
         "normalize runs with 'kvprobe ingest'"
     )
 

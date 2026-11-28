@@ -98,7 +98,7 @@ def compute_readings(payload: dict[str, Any]) -> dict[str, Any]:
         "verdict": assessment["overall"],
         "claims_allowed": claims_allowed,
     }
-    if assessment["overall"] == "INVALID":
+    if assessment["overall"] == "INVALID" or payload.get("schema_version") == "0.4.0":
         return result
     evidence = payload["evidence"]
 

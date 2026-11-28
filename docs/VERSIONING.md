@@ -27,13 +27,21 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 
 | Field | Written | Also read | What it versions | Defined in |
 |---|---|---|---|---|
-| `version` | `0.2.1` | — | The package | `pyproject.toml` |
-| `schema_version` | `0.3.2` | `0.3.0`, `0.3.1`, `0.3.2` | The evidence document that `report` judges | `kvprobe/ingest.py`, `kvprobe/report.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
-| `assessment_version` | `0.7.1` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
-| `normalized_by.version` | `0.4.3` | — | The ingest adapter recorded in evidence provenance | `kvprobe/ingest.py` (`ADAPTER_VERSION`) |
+| `version` | `0.3.0.dev0` | — | The package | `pyproject.toml` |
+| `schema_version` | `0.3.2`, `0.4.0` | `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0` | Report judges legacy local evidence and the experimental NFS Gate 1-only contract | `kvprobe/ingest.py`, `kvprobe/report.py`, `kvprobe/scope_contract.py`, [EVIDENCE.md](EVIDENCE.md#versioned-contracts) |
+| `assessment_version` | `0.8.0` | — | The JSON that `report` emits | `kvprobe/report.py` (`ASSESSMENT_VERSION`) |
+| `normalized_by.version` | `0.4.3`, `0.1.0-experimental` | — | Legacy context adapter / experimental NFS reference adapter | `kvprobe/ingest.py` (`ADAPTER_VERSION`), `kvprobe/nfs_ingest.py` (`NFS_ADAPTER_VERSION`) |
 | `manifest_version` | `0.2.1` | — | The `doctor` capability manifest | `kvprobe/doctor.py` |
 | `tier_check_version` | `0.2.0` | — | The `tier-check` result: read-only host conditions for a local PCIe NVMe run; each check records `required_for_ready`, and a required `SKIP` blocks readiness. Not Gate 1 evidence | `kvprobe/tier_check.py`, `schemas/tier-check-v0.2.0.schema.json` |
 | `geometry_version` | `0.2.0` | — | The `geometry` output | `kvprobe/geometry.py` |
+| `nfs_client_version` | `0.2.0-experimental` (workload checkpoint) | `0.1.0-experimental` (complete client), `0.2.0-experimental` (parent-bound workload) | Request originals can be evaluated before/without stack shutdown; lifecycle health is separate | `kvprobe/nfs_client.py`, `kvprobe/nfs_client_process.py` |
+| `nfs_client_observation_version` | `0.1.0-experimental` | — | Raw client observation view separates measurement availability from stack health; teardown is not a Gate 1 condition | `kvprobe/nfs_client.py` |
+| `nfs_client_process_version` | `0.1.0-experimental` | `0.1.0-experimental` | Parent-observed wait/signal/timeout, logs and artifact seal; actual stack outcome is independent of measurement availability | `kvprobe/nfs_client_process.py` |
+| `scope_inventory_version` | — | `0.1.0-experimental` | Root-side trusted namespace/membership originals read by the experimental NFS reference adapter | `kvprobe/nfs_qualification.py` |
+| `nfs_path_binding_version` | `0.1.0-experimental` | `0.1.0-experimental` | Read-only process/path-to-counter-filesystem metadata; matched is not serving verification or exclusive/export-subtree proof | `kvprobe/nfs_path_binding.py` |
+| `nfs_serving_capture_version` | `0.1.0-experimental` | `0.1.0-experimental` | Raw serving-callback candidate capture and replay; client/baseline provenance and competing I/O remain unqualified, no serving verdict | `kvprobe/nfs_serving.py` |
+| `nfs_capture_version` | `0.1.0-experimental` | `0.1.0-experimental` | Raw NFS snapshot, operation and file-I/O bundle manifests; observation only, not normalized serving evidence | `kvprobe/nfs_bundle.py` |
+| `diagnostic_version` | — | `0.1.0-experimental` | Legacy NFS file-I/O diagnostic input; missing snapshot provenance stays unavailable | `kvprobe/nfs_bundle.py` |
 | `trace_plan_version` | `0.1.0` | — | The `gate1 plan` output | `kvprobe/nvme_plan.py` |
 | `collector_version` | `0.3.0-experimental` | — | The `gate1 capture` collector | `kvprobe/nvme_capture.py` |
 | `trace_contract_version` | `0.2.0` | `0.2.0` | The capture files `gate1 analyze` reads | `kvprobe/nvme_capture.py`, `kvprobe/nvme_trace.py` |
@@ -45,7 +53,27 @@ and **V2** name a claim scope, not a number in any file; see [PROFILES.md](PROFI
 
 ## History
 
-The registry above is the current state of `main`. Each release below lists the contract versions it
+### Unreleased (0.3.0.dev0)
+
+- Development checkpoint, not a published release or generalized hardware support claim.
+  Explicit NFS reference ingest writes 0.4.0 and report judges Gate 1; Gates 2–5 remain
+  unmeasured. G1-only success is overall PARTIAL with performance claims suppressed.
+- The raw NFS client reader accepts buffered mode only when the recorded actual runtime and
+  configured NFS mode agree; local reference controls keep their original direct-I/O requirement.
+- Incompatible assessment boundary: new `target_scope`, NFS provider or tier identity declarations
+  inside 0.3.x now raise an input error, including fatal runs. Previously accepted legacy examples
+  keep their complete assessments apart from the assessment version field. This refusal includes
+  scope-mixing documents that the old reader accepted despite violating their old schema.
+- `assessment_version` advances to `0.8.0`; package targets 0.3.0 as a PEP 440 development version.
+  No existing schema file, canonical legacy configuration bytes or default ingest output changes.
+- Explicit configuration APIs accept `evidence_version="0.4.0"`; `fingerprint --evidence-version`
+  and `ingest --adapter nfs-reference` select the new path. Existing defaults remain legacy.
+  New NFS arm identity binds opaque scope/service/export/client IDs, RDMA transport and I/O mode.
+  Explicit draft 0.4.0 permits zero upper-tier reusable capacity for a controlled
+  cache-disabled setup; 0.3.x validation and schema files keep requiring a positive capacity.
+
+
+The registry above describes the current checkout; an Unreleased entry is not a release. Each release below lists the contract versions it
 ships; a package release does not reset them. The [changelog](../CHANGELOG.md) describes what changed
 for a user.
 

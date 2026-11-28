@@ -20,6 +20,7 @@ from .model_source import (
     load_model_config_file,
     load_model_reference,
 )
+from .nfs_ingest import build_nfs_document
 from .nvme_capture import CaptureError, capture_namespace
 from .nvme_plan import TracePlanError, build_trace_plan, render_trace_plan
 from .nvme_trace import TraceError, analyze_trace, render_trace
@@ -553,7 +554,9 @@ def _fingerprint(args: argparse.Namespace) -> int:
     """
     try:
         parameters = json.loads(args.configuration.read_text(encoding="utf-8"))
-        fingerprint = fingerprint_configuration(parameters)
+        fingerprint = fingerprint_configuration(
+            parameters, evidence_version=getattr(args, "evidence_version", "0.3.2")
+        )
     except (OSError, json.JSONDecodeError, ConfigurationError) as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
@@ -946,17 +949,33 @@ def _ingest(args: argparse.Namespace) -> int:
         reconciled without inventing a fact.
     """
     try:
-        document = ingest_files(
-            args.run, args.configuration, args.run_id, args.expected_reuses
-        )
-    except (OSError, IngestError, ConfigurationError) as exc:
+        if getattr(args, "adapter", "legacy") == "nfs-reference":
+            if len(args.run) != 1 or args.expected_reuses is not None:
+                raise IngestError(
+                    "nfs-reference takes one extracted run and no expected-reuses"
+                )
+            configuration = json.loads(args.configuration.read_text(encoding="utf-8"))
+            document = build_nfs_document(args.run[0], configuration, args.run_id)
+        else:
+            document = ingest_files(
+                args.run, args.configuration, args.run_id, args.expected_reuses
+            )
+    except (OSError, ValueError, IngestError, ConfigurationError) as exc:
         print(f"ingest error: {exc}", file=sys.stderr)
         return 2
     rendered = json.dumps(document, indent=2) + "\n"
     if args.output is None:
         print(rendered, end="")
     else:
-        args.output.write_text(rendered, encoding="utf-8")
+        try:
+            if getattr(args, "adapter", "legacy") == "nfs-reference":
+                with args.output.open("x", encoding="utf-8") as stream:
+                    stream.write(rendered)
+            else:
+                args.output.write_text(rendered, encoding="utf-8")
+        except OSError as exc:
+            print(f"ingest error: {exc}", file=sys.stderr)
+            return 2
     return 0
 
 
@@ -1516,6 +1535,10 @@ def build_parser() -> argparse.ArgumentParser:
         "ingest", help="normalize a measurement run into evidence JSON"
     )
     ingest_parser.add_argument("run", type=Path, nargs="+")
+    ingest_parser.add_argument(
+        "--adapter", choices=("legacy", "nfs-reference"), default="legacy",
+        help="explicit evidence path; default unchanged",
+    )
     ingest_parser.add_argument("--configuration", type=Path, required=True)
     ingest_parser.add_argument("--run-id", required=True)
     ingest_parser.add_argument(
@@ -1530,6 +1553,10 @@ def build_parser() -> argparse.ArgumentParser:
         "fingerprint", help="fingerprint canonical experiment configuration JSON"
     )
     fingerprint_parser.add_argument("configuration", type=Path)
+    fingerprint_parser.add_argument(
+        "--evidence-version", choices=("0.3.0", "0.3.1", "0.3.2", "0.4.0"),
+        default="0.3.2",
+    )
     fingerprint_parser.set_defaults(handler=_fingerprint)
 
     pool_parser = subparsers.add_parser(

@@ -1,0 +1,763 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kv-hierarchy-probe:evidence:0.4.0",
+  "title": "Normalized NFS-service evidence v0.4.0 (experimental Gate 1 checkpoint)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "provenance",
+    "validity",
+    "configurations",
+    "bindings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.4.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/provenance"
+    },
+    "validity": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/validity"
+    },
+    "configurations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/configurationEntry"
+      }
+    },
+    "bindings": {
+      "$ref": "#/$defs/bindings"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "validity": {
+            "properties": {
+              "fatal_observations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "evidence"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "configurationEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fingerprint",
+        "parameters"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "parameters": {
+          "$ref": "#/$defs/configurationParameters"
+        }
+      }
+    },
+    "configurationParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "kv_geometry",
+        "cache",
+        "runtime",
+        "measurement",
+        "arms"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/model"
+        },
+        "kv_geometry": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/kvGeometry"
+        },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "upper_tier_capacity_bytes"
+          ],
+          "properties": {
+            "upper_tier_capacity_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "runtime": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/runtime"
+        },
+        "measurement": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/measurement"
+        },
+        "arms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/arm"
+          }
+        }
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "backend",
+        "tier_path",
+        "attribution_provider",
+        "staging_capacity_bytes",
+        "eviction_policy",
+        "eviction_parameters"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attribution_provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "staging_capacity_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eviction_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eviction_parameters": {
+          "type": "object"
+        },
+        "tier_identity": {
+          "$ref": "#/$defs/targetScope"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "attribution_provider": {
+                "const": "nfs_mountstats"
+              }
+            },
+            "required": [
+              "attribution_provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "tier_identity"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "tier_identity"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "targetScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "service_id",
+        "export_id",
+        "client_id",
+        "transport",
+        "io_mode"
+      ],
+      "properties": {
+        "kind": {
+          "const": "nfs_service"
+        },
+        "transport": {
+          "const": "rdma"
+        },
+        "io_mode": {
+          "enum": [
+            "direct",
+            "buffered"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        },
+        "service_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        },
+        "export_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        },
+        "client_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attribution",
+        "break_even",
+        "admission",
+        "capacity",
+        "envelope"
+      ],
+      "properties": {
+        "attribution": {
+          "$ref": "#/$defs/attribution"
+        },
+        "break_even": {
+          "$ref": "#/$defs/unmeasured"
+        },
+        "admission": {
+          "$ref": "#/$defs/unmeasured"
+        },
+        "capacity": {
+          "$ref": "#/$defs/unmeasured"
+        },
+        "envelope": {
+          "$ref": "#/$defs/unmeasured"
+        }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "required": [
+        "availability"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "supported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "requests"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "unsupported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "requests"
+              ]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "availability": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/availability"
+        },
+        "tolerance_fraction": {
+          "const": 0,
+          "type": "number"
+        },
+        "requests": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/request"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "correct",
+        "source",
+        "expected_bytes",
+        "observed_bytes",
+        "attribution",
+        "nfs_measurement"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correct": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "source": {
+          "const": "target_tier"
+        },
+        "expected_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "observed_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "attribution": {
+          "$ref": "#/$defs/attributionRecord"
+        },
+        "nfs_measurement": {
+          "$ref": "#/$defs/nfsMeasurement"
+        }
+      }
+    },
+    "attributionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "granularity",
+        "confidence",
+        "target_device_filtered",
+        "artifact_refs"
+      ],
+      "properties": {
+        "provider": {
+          "const": "nfs_mountstats"
+        },
+        "granularity": {
+          "enum": [
+            "per_request",
+            "per_batch",
+            "per_run"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "direct",
+            "corroborating",
+            "heuristic"
+          ]
+        },
+        "target_device_filtered": {
+          "type": "boolean"
+        },
+        "artifact_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "target_scope": {
+          "$ref": "#/$defs/targetScope"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "nfs_mountstats"
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "target_scope"
+            ],
+            "properties": {
+              "target_device_filtered": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "target_scope"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "bindings": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/bindings"
+    },
+    "nfsMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capture_status",
+        "workload",
+        "identity_binding",
+        "source_binding",
+        "payload_mapping",
+        "namespace_binding",
+        "counter_before",
+        "counter_after",
+        "rpc_before",
+        "rpc_after",
+        "retransmissions",
+        "timeouts",
+        "errors",
+        "expected_payload_bytes",
+        "client_binding",
+        "dedicated_mount",
+        "serialized",
+        "quiet_activity",
+        "gap_activity",
+        "io_mode_match",
+        "configuration_fingerprint",
+        "clock",
+        "counter",
+        "capture_reason",
+        "interval_ns",
+        "artifact_roles"
+      ],
+      "properties": {
+        "capture_status": {
+          "enum": [
+            "complete",
+            "invalid",
+            "missing"
+          ]
+        },
+        "workload": {
+          "enum": [
+            "isolated_file_io",
+            "serving_retrieval"
+          ]
+        },
+        "identity_binding": {
+          "enum": [
+            "changed",
+            "matched",
+            "missing",
+            "wrong_target"
+          ]
+        },
+        "source_binding": {
+          "enum": [
+            "matched",
+            "missing",
+            "unrecognized"
+          ]
+        },
+        "payload_mapping": {
+          "enum": [
+            "identity",
+            "unknown",
+            "unstable"
+          ]
+        },
+        "namespace_binding": {
+          "enum": [
+            "bounded",
+            "mismatch",
+            "shared",
+            "unknown"
+          ]
+        },
+        "counter_before": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "counter_after": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "rpc_before": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "rpc_after": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "retransmissions": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "timeouts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "errors": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "expected_payload_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "client_binding": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dedicated_mount": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "serialized": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "quiet_activity": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "gap_activity": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "io_mode_match": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "configuration_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "clock": {
+          "type": "string",
+          "minLength": 1
+        },
+        "counter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capture_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "interval_ns": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          ]
+        },
+        "artifact_roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "client",
+            "source",
+            "file_layout",
+            "namespace",
+            "counters",
+            "correctness"
+          ],
+          "properties": {
+            "client": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "source": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "file_layout": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "namespace": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "counters": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "correctness": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "unmeasured": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability"
+      ],
+      "properties": {
+        "availability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reason_code",
+            "detail"
+          ],
+          "properties": {
+            "status": {
+              "const": "unsupported"
+            },
+            "reason_code": {
+              "type": "string",
+              "minLength": 1
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

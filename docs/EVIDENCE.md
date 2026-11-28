@@ -279,10 +279,17 @@ This produces `SKIP_UNSUPPORTED`, not `FAIL`. See
 
 ## Fatal observations
 
-An allocation failure, model mismatch, counter reset, incomplete run, or malformed timing is
-evidence that the run is invalid. Record it under `validity.fatal_observations` and link it to a
-declared artifact. A fatal run may omit the five evidence sections because their absence is a
-consequence of the captured failure.
+An allocation failure, model mismatch, counter reset, incomplete measurement, or malformed timing
+can invalidate the required measurement evidence. Record that observed impact under
+`validity.fatal_observations` and link it to a declared artifact. A fatal run may omit the five
+evidence sections because their absence is a consequence of the captured failure.
+
+A nonzero serving-stack exit after a finished request is not automatically a fatal observation.
+Adapters assess request correctness, counter scope/bytes, binding and capture integrity in the
+measured interval. They retain unrelated teardown errors as separate operational diagnostics.
+Normal process exit is neither necessary nor sufficient for Gate 1; a running service does not
+need to shut down to supply valid evidence. This guidance does not add a stack-health field to the
+normalized 0.3.x contract or reinterpret a document that already declares a fatal observation.
 
 ```json
 {
@@ -406,3 +413,21 @@ is not the target tier or observed bytes are below expected bytes; it is a
 separate display state. Timing remains a client observation; the grade describes
 its tier attribution. Fatal or mixed-configuration evidence produces no readings
 and cannot combine configurations.
+
+
+## Experimental NFS service contract
+
+Explicit `ingest --adapter nfs-reference` writes the separate NFS contract listed in
+[VERSIONING](VERSIONING.md). `nfs_measurement` binds payload counters, timing, the configured
+service scope, recognized loaded-source/file layout and bounded namespace evidence, with six
+original roles. Missing facts remain null or empty role lists rather than zero or satisfied flags.
+A target-device filter stays false. The report judges NFS Gate 1 only; Gates 2–5 must be marked
+unmeasured. G1 PASS is overall PARTIAL with performance claims suppressed, never overall PASS.
+
+The [experimental path](NFS-RDMA-EXPERIMENTAL.md) describes the trust model, supported reference
+format and exit codes. Normalized role references carry opaque IDs and hashes, not raw host paths;
+frozen configuration can still contain private model/tier paths and belongs in local evidence.
+A post-request stack error is operational health, independent of the measurement verdict.
+Qualified retained originals can establish Gate 1 for their captured request. A new positive run
+is needed for missing evidence or changed collection/measurement conditions, not simply to connect
+an offline CLI. Broader live workflow qualification remains separate from that request's verdict.
