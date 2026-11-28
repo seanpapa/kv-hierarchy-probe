@@ -9,6 +9,7 @@ from typing import Any
 
 # Local
 from .configuration import ConfigurationError, validate_registry
+from .tier_scope import ScopeError, reject_legacy_scope
 
 
 class EvidenceError(ValueError):
@@ -105,7 +106,9 @@ _PASSING_CONFIDENCE = {"direct", "corroborating"}
 #: judged as before. 0.7.1 adds the staging-pool cause to the Gate 4 text that
 #: describes fallbacks beyond capacity, unless every fallback points to the
 #: store path. Verdicts are unchanged.
-ASSESSMENT_VERSION = "0.7.1"
+#: Next incompatible boundary: new NFS scope declarations under legacy versions
+#: are refused instead of being silently assessed as block-device evidence.
+ASSESSMENT_VERSION = "0.8.0"
 _GATE_STATUSES = {"PASS", "FAIL", "UNPROVEN", "SKIP_UNSUPPORTED", "INVALID"}
 _FATAL_SCOPES = {"measurement"}
 
@@ -1752,7 +1755,16 @@ def assess_evidence(payload: Any) -> dict[str, Any]:
             "(see docs/EVIDENCE.md)"
         )
     if schema_version in {"0.3.0", "0.3.1", "0.3.2"}:
+        try:
+            reject_legacy_scope(payload)
+        except ScopeError as exc:
+            raise EvidenceError(str(exc)) from exc
         return _assess_v0_3(payload)
+    if schema_version == "0.4.0":
+        raise EvidenceError(
+            "evidence 0.4.0 scope contract is a draft; "
+            "NFS serving report integration is pending"
+        )
     raise EvidenceError(
         "schema_version must be '0.3.0', '0.3.1' or '0.3.2'; "
         "normalize runs with 'kvprobe ingest'"

@@ -1,0 +1,509 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kv-hierarchy-probe:evidence:0.4.0",
+  "title": "Draft normalized evidence v0.4.0 scope contract (report integration pending)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "provenance",
+    "validity",
+    "configurations",
+    "bindings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.4.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/provenance"
+    },
+    "validity": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/validity"
+    },
+    "configurations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/configurationEntry"
+      }
+    },
+    "bindings": {
+      "$ref": "#/$defs/bindings"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "validity": {
+            "properties": {
+              "fatal_observations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "evidence"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "configurationEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fingerprint",
+        "parameters"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "parameters": {
+          "$ref": "#/$defs/configurationParameters"
+        }
+      }
+    },
+    "configurationParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "kv_geometry",
+        "cache",
+        "runtime",
+        "measurement",
+        "arms"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/model"
+        },
+        "kv_geometry": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/kvGeometry"
+        },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "upper_tier_capacity_bytes"
+          ],
+          "properties": {
+            "upper_tier_capacity_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "runtime": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/runtime"
+        },
+        "measurement": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/measurement"
+        },
+        "arms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/arm"
+          }
+        }
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "backend",
+        "tier_path",
+        "attribution_provider",
+        "staging_capacity_bytes",
+        "eviction_policy",
+        "eviction_parameters"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attribution_provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "staging_capacity_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eviction_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eviction_parameters": {
+          "type": "object"
+        },
+        "tier_identity": {
+          "$ref": "#/$defs/targetScope"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "attribution_provider": {
+                "const": "nfs_mountstats"
+              }
+            },
+            "required": [
+              "attribution_provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "tier_identity"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "tier_identity"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "targetScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "service_id",
+        "export_id",
+        "client_id",
+        "transport",
+        "io_mode"
+      ],
+      "properties": {
+        "kind": {
+          "const": "nfs_service"
+        },
+        "transport": {
+          "const": "rdma"
+        },
+        "io_mode": {
+          "enum": [
+            "direct",
+            "buffered"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        },
+        "service_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        },
+        "export_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        },
+        "client_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\\s\\S])"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attribution",
+        "break_even",
+        "admission",
+        "capacity",
+        "envelope"
+      ],
+      "properties": {
+        "attribution": {
+          "$ref": "#/$defs/attribution"
+        },
+        "break_even": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/breakEven"
+        },
+        "admission": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/admission"
+        },
+        "capacity": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/capacity"
+        },
+        "envelope": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/envelope"
+        }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "required": [
+        "availability"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "supported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "requests"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "availability": {
+                "properties": {
+                  "status": {
+                    "const": "unsupported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "requests"
+              ]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "availability": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/availability"
+        },
+        "tolerance_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "requests": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/request"
+          }
+        },
+        "corroborating_observations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "provider",
+              "granularity",
+              "observed_bytes",
+              "artifact_refs"
+            ],
+            "properties": {
+              "provider": {
+                "type": "string",
+                "minLength": 1
+              },
+              "granularity": {
+                "enum": [
+                  "per_batch",
+                  "per_run"
+                ]
+              },
+              "observed_bytes": {
+                "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/nonNegativeNumber"
+              },
+              "artifact_refs": {
+                "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/artifactReference"
+              }
+            }
+          }
+        },
+        "warmup_observations": {
+          "description": "Optional. Warm-up requests are excluded from the verdict; this counts those that moved no bytes from the tier, so a tier that missed its first reuse stays visible.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requests",
+            "moved_no_bytes",
+            "artifact_refs"
+          ],
+          "properties": {
+            "requests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "moved_no_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "artifact_refs": {
+              "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/artifactReference"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "correct",
+        "source",
+        "expected_bytes",
+        "observed_bytes",
+        "attribution"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correct": {
+          "type": "boolean"
+        },
+        "source": {
+          "enum": [
+            "target_tier",
+            "upper_tier",
+            "recompute"
+          ]
+        },
+        "expected_bytes": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/nonNegativeNumber"
+        },
+        "observed_bytes": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/nonNegativeNumber"
+        },
+        "attribution": {
+          "$ref": "#/$defs/attributionRecord"
+        }
+      }
+    },
+    "attributionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "granularity",
+        "confidence",
+        "target_device_filtered",
+        "artifact_refs"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "granularity": {
+          "enum": [
+            "per_request",
+            "per_batch",
+            "per_run"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "direct",
+            "corroborating",
+            "heuristic"
+          ]
+        },
+        "target_device_filtered": {
+          "type": "boolean"
+        },
+        "artifact_refs": {
+          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/artifactReference"
+        },
+        "target_scope": {
+          "$ref": "#/$defs/targetScope"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "nfs_mountstats"
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "target_scope"
+            ],
+            "properties": {
+              "target_device_filtered": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "target_scope"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "bindings": {
+      "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/bindings"
+    }
+  }
+}

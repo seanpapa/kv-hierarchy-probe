@@ -103,6 +103,13 @@ read the current pair from [VERSIONING.md](VERSIONING.md).
   claims and retain their raw evidence. A report may suppress the entire claim when a gate
   fails; filtering a row is not permission to override that decision.
 
+Gate 1 evaluates the request's measurement window, not the serving process's lifetime.
+Normal stack exit is neither necessary nor sufficient: a persistent serving endpoint need not
+shut down, and a post-request teardown error does not invalidate complete, correctly bound
+request evidence. Record stack health separately. If an error leaves the request unfinished,
+changes its output or corrupts/misses the required counter/capture evidence, assess that actual
+measurement impact. Cleanup patches are optional operational experiments, not Gate 1 prerequisites.
+
 See [CHECKLIST](CHECKLIST.md) for implementation locations and manual responsibilities.
 These are measurement requirements, not a claim that all current scripts call one shared
 validator or implement every check automatically. `doctor`/`demo` are capability discovery
