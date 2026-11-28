@@ -6,8 +6,10 @@ only when every gate passes. It also shows efficiency readings with attribution 
 gate withholds the performance family and leaves the integrity readings, which is where the
 failure usually shows. See [efficiency readings](#efficiency-readings).
 
-The current contract is `schema_version: "0.3.2"`; `0.3.0` and `0.3.1` documents also remain supported
-without changing their verdicts. All are intentionally smaller than raw serving-stack
+The default local contract is `schema_version: "0.3.2"`; `0.3.0` and `0.3.1` documents remain supported
+without changing their verdicts. The separate [NFS-service contract](#nfs-service-reference-contract)
+is `0.4.0`, available on main and unreleased, and assesses Gate 1 only. These formats are intentionally
+smaller than raw serving-stack
 output. An adapter should keep raw evidence in access-controlled storage, then derive a sanitized
 normalized document without deleting failed requests. Raw bundles are not kept in this repository.
 Portable regression cases that reproduce a gate decision without deployment data live in
@@ -415,7 +417,9 @@ its tier attribution. Fatal or mixed-configuration evidence produces no readings
 and cannot combine configurations.
 
 
-## Experimental NFS service contract
+<a name="experimental-nfs-service-contract"></a>
+
+## NFS service reference contract
 
 Explicit `ingest --adapter nfs-reference` writes the separate NFS contract listed in
 [VERSIONING](VERSIONING.md). `nfs_measurement` binds payload counters, timing, the configured
@@ -424,10 +428,13 @@ original roles. Missing facts remain null or empty role lists rather than zero o
 A target-device filter stays false. The report judges NFS Gate 1 only; Gates 2–5 must be marked
 unmeasured. G1 PASS is overall PARTIAL with performance claims suppressed, never overall PASS.
 
-The [experimental path](NFS-RDMA-EXPERIMENTAL.md) describes the trust model, supported reference
+The [reference path](NFS-RDMA-EXPERIMENTAL.md) describes the trust model, supported reference
 format and exit codes. Normalized role references carry opaque IDs and hashes, not raw host paths;
 frozen configuration can still contain private model/tier paths and belongs in local evidence.
 A post-request stack error is operational health, independent of the measurement verdict.
+The controlled, serialized reference request has passed Gate 1; broader stacks/layouts and actual
+client-cache-negative coverage remain separate follow-up work. This path is available on main,
+unreleased, and does not supply NFS measurements for Gates 2–5.
 Qualified retained originals can establish Gate 1 for their captured request. A new positive run
 is needed for missing evidence or changed collection/measurement conditions, not simply to connect
 an offline CLI. Broader live workflow qualification remains separate from that request's verdict.
