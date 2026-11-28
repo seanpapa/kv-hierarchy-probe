@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:kv-hierarchy-probe:evidence:0.4.0",
-  "title": "Draft normalized evidence v0.4.0 scope contract (report integration pending)",
+  "title": "Normalized NFS-service evidence v0.4.0 (experimental Gate 1 checkpoint)",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -263,16 +263,16 @@
           "$ref": "#/$defs/attribution"
         },
         "break_even": {
-          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/breakEven"
+          "$ref": "#/$defs/unmeasured"
         },
         "admission": {
-          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/admission"
+          "$ref": "#/$defs/unmeasured"
         },
         "capacity": {
-          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/capacity"
+          "$ref": "#/$defs/unmeasured"
         },
         "envelope": {
-          "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/envelope"
+          "$ref": "#/$defs/unmeasured"
         }
       }
     },
@@ -326,69 +326,14 @@
           "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/availability"
         },
         "tolerance_fraction": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
+          "const": 0,
+          "type": "number"
         },
         "requests": {
           "type": "array",
           "minItems": 1,
           "items": {
             "$ref": "#/$defs/request"
-          }
-        },
-        "corroborating_observations": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "provider",
-              "granularity",
-              "observed_bytes",
-              "artifact_refs"
-            ],
-            "properties": {
-              "provider": {
-                "type": "string",
-                "minLength": 1
-              },
-              "granularity": {
-                "enum": [
-                  "per_batch",
-                  "per_run"
-                ]
-              },
-              "observed_bytes": {
-                "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/nonNegativeNumber"
-              },
-              "artifact_refs": {
-                "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/artifactReference"
-              }
-            }
-          }
-        },
-        "warmup_observations": {
-          "description": "Optional. Warm-up requests are excluded from the verdict; this counts those that moved no bytes from the tier, so a tier that missed its first reuse stays visible.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "requests",
-            "moved_no_bytes",
-            "artifact_refs"
-          ],
-          "properties": {
-            "requests": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "moved_no_bytes": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "artifact_refs": {
-              "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/artifactReference"
-            }
           }
         }
       },
@@ -403,7 +348,8 @@
         "source",
         "expected_bytes",
         "observed_bytes",
-        "attribution"
+        "attribution",
+        "nfs_measurement"
       ],
       "properties": {
         "id": {
@@ -411,23 +357,33 @@
           "minLength": 1
         },
         "correct": {
-          "type": "boolean"
-        },
-        "source": {
-          "enum": [
-            "target_tier",
-            "upper_tier",
-            "recompute"
+          "type": [
+            "boolean",
+            "null"
           ]
         },
+        "source": {
+          "const": "target_tier"
+        },
         "expected_bytes": {
-          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/nonNegativeNumber"
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
         },
         "observed_bytes": {
-          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/nonNegativeNumber"
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
         },
         "attribution": {
           "$ref": "#/$defs/attributionRecord"
+        },
+        "nfs_measurement": {
+          "$ref": "#/$defs/nfsMeasurement"
         }
       }
     },
@@ -443,8 +399,7 @@
       ],
       "properties": {
         "provider": {
-          "type": "string",
-          "minLength": 1
+          "const": "nfs_mountstats"
         },
         "granularity": {
           "enum": [
@@ -464,7 +419,12 @@
           "type": "boolean"
         },
         "artifact_refs": {
-          "$ref": "urn:kv-hierarchy-probe:evidence:0.2.0#/$defs/artifactReference"
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "target_scope": {
           "$ref": "#/$defs/targetScope"
@@ -504,6 +464,300 @@
     },
     "bindings": {
       "$ref": "urn:kv-hierarchy-probe:evidence:0.3.2#/$defs/bindings"
+    },
+    "nfsMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capture_status",
+        "workload",
+        "identity_binding",
+        "source_binding",
+        "payload_mapping",
+        "namespace_binding",
+        "counter_before",
+        "counter_after",
+        "rpc_before",
+        "rpc_after",
+        "retransmissions",
+        "timeouts",
+        "errors",
+        "expected_payload_bytes",
+        "client_binding",
+        "dedicated_mount",
+        "serialized",
+        "quiet_activity",
+        "gap_activity",
+        "io_mode_match",
+        "configuration_fingerprint",
+        "clock",
+        "counter",
+        "capture_reason",
+        "interval_ns",
+        "artifact_roles"
+      ],
+      "properties": {
+        "capture_status": {
+          "enum": [
+            "complete",
+            "invalid",
+            "missing"
+          ]
+        },
+        "workload": {
+          "enum": [
+            "isolated_file_io",
+            "serving_retrieval"
+          ]
+        },
+        "identity_binding": {
+          "enum": [
+            "changed",
+            "matched",
+            "missing",
+            "wrong_target"
+          ]
+        },
+        "source_binding": {
+          "enum": [
+            "matched",
+            "missing",
+            "unrecognized"
+          ]
+        },
+        "payload_mapping": {
+          "enum": [
+            "identity",
+            "unknown",
+            "unstable"
+          ]
+        },
+        "namespace_binding": {
+          "enum": [
+            "bounded",
+            "mismatch",
+            "shared",
+            "unknown"
+          ]
+        },
+        "counter_before": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "counter_after": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "rpc_before": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "rpc_after": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "retransmissions": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "timeouts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "errors": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "expected_payload_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "client_binding": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dedicated_mount": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "serialized": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "quiet_activity": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "gap_activity": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "io_mode_match": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "configuration_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "clock": {
+          "type": "string",
+          "minLength": 1
+        },
+        "counter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capture_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "interval_ns": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          ]
+        },
+        "artifact_roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "client",
+            "source",
+            "file_layout",
+            "namespace",
+            "counters",
+            "correctness"
+          ],
+          "properties": {
+            "client": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "source": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "file_layout": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "namespace": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "counters": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "correctness": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "unmeasured": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability"
+      ],
+      "properties": {
+        "availability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reason_code",
+            "detail"
+          ],
+          "properties": {
+            "status": {
+              "const": "unsupported"
+            },
+            "reason_code": {
+              "type": "string",
+              "minLength": 1
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
     }
   }
 }

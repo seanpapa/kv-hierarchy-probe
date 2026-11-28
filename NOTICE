@@ -6,3 +6,7 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 The hero image assets/kv-hierarchy-probe-hero-v2.png is licensed separately
 under the Creative Commons Attribution 4.0 International license; see
 assets/README.md.
+
+The parsing-only fixture tests/fixtures/nfs/layout-source.txt derives three
+LocalDiskBackend method shapes from LMCache (Apache-2.0). It is modified
+for synthetic source-contract testing and contains no measurement data.

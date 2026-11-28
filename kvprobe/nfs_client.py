@@ -207,7 +207,8 @@ def _call(files: dict[str, bytes]) -> dict[str, Any]:
             or cache.get("enable_scheduler_bypass_lookup") is not False
             or cache.get("store_location") != "LocalDiskBackend"
             or cache.get("retrieve_locations") != ["LocalDiskBackend"]
-            or cache.get("use_odirect") is not True
+            or type(cache.get("use_odirect")) is not bool
+            or (mode == "local" and cache.get("use_odirect") is not True)
             or not isinstance(cache.get("local_disk"), str)
         ):
             raise NfsObservationError("actual LMCache configuration contradicts mode")
@@ -315,6 +316,21 @@ def _replay_capture(
         nfs = replay_serving_candidate(root / "serving")
         manifest = _decode(files["serving/serving-manifest.json"])
         configuration = _decode(files["serving/configuration.json"])
+        if "actual-runtime.json" in files:
+            runtime = _decode(files["actual-runtime.json"])
+            cache = runtime.get("lmcache", {})
+            arms = configuration.get("arms", [])
+            selected = [
+                arm
+                for arm in arms
+                if arm.get("attribution_provider") == "nfs_mountstats"
+            ]
+            if len(selected) != 1 or selected[0]["tier_identity"]["io_mode"] != (
+                "direct" if cache.get("use_odirect") else "buffered"
+            ):
+                raise NfsObservationError(
+                    "actual NFS I/O mode contradicts configuration"
+                )
         geometry = configuration["kv_geometry"]
         if geometry != {
             "chunk_tokens": 32,

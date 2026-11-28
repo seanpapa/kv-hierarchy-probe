@@ -246,11 +246,11 @@ class ScopeContractTests(unittest.TestCase):
         with self.assertRaises(ScopeError):
             validate_scope_bindings(document)
 
-    def test_draft_report_is_refused_even_for_matching_scope(self) -> None:
+    def test_scope_declaration_alone_cannot_produce_report_pass(self) -> None:
         """A validated declaration cannot produce a serving PASS before integration."""
         document = scoped()
         validate_scope_bindings(document)
-        with self.assertRaisesRegex(EvidenceError, "integration is pending"):
+        with self.assertRaisesRegex(EvidenceError, "Gate 1 only|nfs_measurement"):
             assess_evidence(document)
         document["schema_version"] = "0.3.2"
         with self.assertRaises(ScopeError):
@@ -354,7 +354,10 @@ class ScopeSchemaTests(unittest.TestCase):
         """The complete draft references frozen legacy definitions offline."""
         v = validator()
         v.check_schema(v.schema)
-        self.assertEqual(list(v.iter_errors(scoped())), [])
+        # Scope declarations alone are no longer complete report evidence.
+        from nfs_c3_fixtures import normalized
+        self.assertEqual(list(v.iter_errors(normalized())), [])
+        self.assertTrue(list(v.iter_errors(scoped())))
 
     def test_scope_fragment_and_manual_identity_validation_agree(self) -> None:
         """Malformed types, IDs, transports, modes and keys have the same boundary."""

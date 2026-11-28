@@ -73,6 +73,8 @@ def reject_legacy_scope(payload: dict[str, Any]) -> None:
             if isinstance(values, list):
                 for value in values:
                     if isinstance(value, dict):
+                        if "nfs_measurement" in value:
+                            raise ScopeError("NFS measurement requires evidence 0.4.0")
                         records.append(value)
                         if isinstance(value.get("attribution"), dict):
                             records.append(value["attribution"])

@@ -15,13 +15,16 @@ names and internal paths.
 ## Next
 
 **NFS/RDMA Gate 1 evidence (in development).** Experimental raw capture/replay, process/path
-binding and draft scope validation are present on this branch. The serving adapter, report/CLI
-integration and positive/negative acceptance remain unfinished. Existing verified scope stays local
-NVMe. See [experimental APIs and remaining work](NFS-RDMA-EXPERIMENTAL.md).
+binding, reference-originals ingest and Gate 1-only report assessment are present on this branch.
+Qualified retained serving originals can establish Gate 1 for their measured requests. Live producer
+setup guidance and integrated client-cache-negative coverage remain follow-up work. The established
+operational reference remains local NVMe. See [experimental APIs and remaining work](NFS-RDMA-EXPERIMENTAL.md).
 
 - **Closes when:** qualified serving originals produce the expected Gate 1 verdicts through the
   normalized adapter and report, client-cache hits cannot masquerade as remote service, and local
   NVMe regression results remain intact. Gate 1-only evidence keeps the overall report `PARTIAL`.
+  A new positive run is required for missing evidence or changed collection/measurement conditions,
+  rather than solely because an offline normalization CLI was added.
 
 ### Follow-up: TP=1 on a multi-GPU host
 
@@ -133,8 +136,9 @@ validation requires additional correlation and path evidence
   store, with an identity that ties them to the request. NIC totals include other traffic and protocol
   overhead; logical KV bytes, encoded payload and wire bytes can differ and need their own expected values.
 - **In development:** the NFS/RDMA [raw APIs and draft scope](NFS-RDMA-EXPERIMENTAL.md) address
-  mount-scoped observations. No normalized NFS adapter or Gate 1 support is declared yet; object
-  storage and network KV stores still need their own evidence providers.
+  mount-scoped observations with explicit reference ingest and G1-only assessment. Qualified
+  retained requests and broader live workflow qualification are separate scopes; object storage
+  and network KV stores still need their own evidence providers.
 - **Closes when:** an adapter turns such evidence into the normalized format, with synthetic tests for
   complete, missing and partial transfers, and one controlled hardware run shows the attachment's limits.
   Keep the result scoped to the tier and path actually measured.

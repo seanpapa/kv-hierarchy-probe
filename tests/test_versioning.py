@@ -60,6 +60,7 @@ def written_by_code() -> dict[str, set[str]]:
                 found.setdefault(match.group(1), set()).update(values)
     for module, constant, field in (
         ("ingest.py", "ADAPTER_VERSION", "normalized_by.version"),
+        ("nfs_ingest.py", "NFS_ADAPTER_VERSION", "normalized_by.version"),
         ("report.py", "ASSESSMENT_VERSION", "assessment_version"),
     ):
         match = re.search(

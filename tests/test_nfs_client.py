@@ -390,7 +390,7 @@ class ClientExecutionTests(unittest.TestCase):
                 replay_client_execution(root)
 
 
-def nfs_fixture(root: Path) -> None:
+def nfs_fixture(root: Path, *, io_mode: str = "direct", payload: int = 8192) -> None:
     """Join independent synthetic client, C1 and C2-A original formats."""
     fixture(root)
     mutate(root, "frozen.json", "mode", "nfs")
@@ -401,20 +401,22 @@ def nfs_fixture(root: Path) -> None:
         "bytes_per_chunk": 8192,
         "dtype": "bfloat16",
     }
+    configuration["arms"][0]["tier_identity"]["io_mode"] = io_mode
     (root / "serving").mkdir()
     input_bytes = (root / "input.bin").read_bytes()
     state = {"payload": 0, "ops": 0}
 
     def operation() -> bytes:
         start = time.monotonic_ns()
-        state["payload"] = 8192
-        state["ops"] = 1
+        state["payload"] = payload
+        state["ops"] = int(payload > 0)
         end = time.monotonic_ns()
         value = json.loads((root / "retrieve.json").read_text())
         value["interval_ns"] = [start, end]
         obj(root, "retrieve.json", value)
         return (root / "output.bin").read_bytes()
 
+    prior = mapping()
     with proc(state):
         capture_serving_candidate(
             root / "serving",
@@ -428,7 +430,7 @@ def nfs_fixture(root: Path) -> None:
             input_bytes,
             (root / "baseline/output.bin").read_bytes(),
             MOUNT,
-            mapping(),
+            prior,
             operation,
             quiet_seconds=0.0001,
         )

@@ -11,7 +11,7 @@ This directory contains the method, reproducibility notes, and release controls 
 | [`GATE1.md`](GATE1.md) | Establish measurement validity: prepare the configuration, choose an evidence path, collect and review evidence before performance evaluation. **Continue here after first-visit.** | Gate 1 workflow and repeated validation in Gates 2–5 |
 | [`GATE1-NVME-TRACE.md`](GATE1-NVME-TRACE.md) | Optional experimental NVMe observation, trace contracts, quality checks and interpretation limits. | `python -m kvprobe gate1 plan`, `capture`, `analyze` |
 | [`GATE1-SERVING-REVIEW.md`](GATE1-SERVING-REVIEW.md) | Experimental scoped serving review for a serial native cuFile GDS run; operator evidence and automatic checks must agree. | `python -m kvprobe gate1 verify` |
-| [`NFS-RDMA-EXPERIMENTAL.md`](NFS-RDMA-EXPERIMENTAL.md) | Development-only NFS capture/replay APIs and draft service scope; no NFS verdict or ingest adapter yet. | experimental Python APIs and synthetic tests |
+| [`NFS-RDMA-EXPERIMENTAL.md`](NFS-RDMA-EXPERIMENTAL.md) | Experimental NFS reference ingest and Gate 1-only assessment; qualified originals, source/layout/scope boundaries and remaining live acceptance. | `ingest --adapter nfs-reference`, `report`, raw Python APIs |
 | [`VERSIONING.md`](VERSIONING.md) | Versioning rules and the one registry of package and data-contract versions. | `python -m unittest tests.test_versioning` |
 | [`RELEASING.md`](RELEASING.md) | How a release is versioned, checked, tagged and published; what happens after a defective release. | — |
 | [`ROADMAP.md`](ROADMAP.md) | What is not verified yet, known limitations in the verified path, and planned work, with the condition that closes each item. | scope boundary and next steps |

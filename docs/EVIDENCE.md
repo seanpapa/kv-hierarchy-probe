@@ -413,3 +413,21 @@ is not the target tier or observed bytes are below expected bytes; it is a
 separate display state. Timing remains a client observation; the grade describes
 its tier attribution. Fatal or mixed-configuration evidence produces no readings
 and cannot combine configurations.
+
+
+## Experimental NFS service contract
+
+Explicit `ingest --adapter nfs-reference` writes the separate NFS contract listed in
+[VERSIONING](VERSIONING.md). `nfs_measurement` binds payload counters, timing, the configured
+service scope, recognized loaded-source/file layout and bounded namespace evidence, with six
+original roles. Missing facts remain null or empty role lists rather than zero or satisfied flags.
+A target-device filter stays false. The report judges NFS Gate 1 only; Gates 2–5 must be marked
+unmeasured. G1 PASS is overall PARTIAL with performance claims suppressed, never overall PASS.
+
+The [experimental path](NFS-RDMA-EXPERIMENTAL.md) describes the trust model, supported reference
+format and exit codes. Normalized role references carry opaque IDs and hashes, not raw host paths;
+frozen configuration can still contain private model/tier paths and belongs in local evidence.
+A post-request stack error is operational health, independent of the measurement verdict.
+Qualified retained originals can establish Gate 1 for their captured request. A new positive run
+is needed for missing evidence or changed collection/measurement conditions, not simply to connect
+an offline CLI. Broader live workflow qualification remains separate from that request's verdict.
